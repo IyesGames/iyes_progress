@@ -10,10 +10,7 @@ categories = ["game-engines"]
 description = "Bevy plugin to help implement loading states"
 
 [dependencies]
-bevy = { version = "0.5.0", default-features = false }
+bevy = { git = "https://github.com/bevyengine/bevy.git" }
 
 [dev-dependencies]
 bevy = "0.5.0"
-
-[patch.crates-io]
-bevy = { git = "https://github.com/bevyengine/bevy.git" }
