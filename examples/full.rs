@@ -12,7 +12,7 @@ enum AppState {
 }
 
 fn main() {
-    App::build()
+    App::new()
         // Init bevy
         .add_plugins(DefaultPlugins)
 
@@ -41,12 +41,12 @@ fn main() {
             SystemSet::on_update(AppState::GameLoading)
                 // systems that implement tasks to be tracked for completion:
                 // (wrap systems that return `Progress` with `track`)
-                .with_system(track(net_init_session.system()))
-                .with_system(track(worldgen.system()))
+                .with_system(track(net_init_session))
+                .with_system(track(worldgen))
 
                 // we can also add regular untracked systems to our loading screen,
                 // like to draw our progress bar:
-                .with_system(ui_progress_bar.system())
+                .with_system(ui_progress_bar)
         )
         .run();
 }
