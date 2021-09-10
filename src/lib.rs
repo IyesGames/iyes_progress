@@ -152,8 +152,8 @@ impl<S: BevyState> Plugin for LoadingPlugin<S> {
 /// SystemSet::on_update(my_loading_state)
 ///     .with_system(track(my_loading_system.system()))
 /// ```
-pub fn track<S: System<In = (), Out = Progress>>(s: S) -> ParallelSystemDescriptor {
-    s.chain(tracker.system())
+pub fn track<Params, S: IntoSystem<(), Progress, Params>>(s: S) -> ParallelSystemDescriptor {
+    s.chain(tracker)
         .before(ReadyLabel::Post)
         .after(ReadyLabel::Pre)
 }
