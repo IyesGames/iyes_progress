@@ -197,6 +197,17 @@ impl ProgressCounter {
     pub fn progress(&self) -> Progress {
         self.last_progress
     }
+
+    /// Add some amount of progress to the running total for the current frame.
+    ///
+    /// You typically don't need to call this function yourself.
+    ///
+    /// It may be useful for advanced use cases, like from exclusive systems.
+    pub fn manually_tick(&self, progress: Progress) {
+        self.total.fetch_add(progress.total, MemOrdering::Release);
+        // use `min` to clamp in case a bad user provides `done > total`
+        self.done.fetch_add(progress.done.min(progress.total), MemOrdering::Release);
+    }
 }
 
 fn loadstate_enter(mut commands: Commands) {
@@ -208,13 +219,7 @@ fn loadstate_exit(mut commands: Commands) {
 }
 
 fn tracker(In(progress): In<Progress>, counter: Res<ProgressCounter>) {
-    counter
-        .total
-        .fetch_add(progress.total, MemOrdering::Release);
-    // use `min` to clamp in case a bad user system returns `done > total`
-    counter
-        .done
-        .fetch_add(progress.done.min(progress.total), MemOrdering::Release);
+    counter.manually_tick(progress);
 }
 
 fn check_progress<S: BevyState>(
