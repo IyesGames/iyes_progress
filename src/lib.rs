@@ -158,8 +158,17 @@ pub fn track<Params, S: IntoSystem<(), Progress, Params>>(s: S) -> ParallelSyste
         .after(ReadyLabel::Pre)
 }
 
+/// Label to control system execution order
+///
+/// Use this if you want to schedule systems to run before or after any tracked systems.
+///
+/// All tracked systems run after `ReadyLabel::Pre` and before `ReadyLabel::Post`.
+///
+/// If you need the latest progress information (by calling `ProgressCounter::progress`)
+/// from the current frame, your system should run *after* `ReadyLabel::Post`. Otherwise,
+/// you will get the value from the previous frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemLabel)]
-enum ReadyLabel {
+pub enum ReadyLabel {
     Pre,
     Post,
 }
@@ -180,7 +189,11 @@ pub struct ProgressCounter {
 impl ProgressCounter {
     /// Get the latest overall progress information
     ///
-    /// This is the combined total of all systems, at the end of the previous frame update.
+    /// This is the combined total of all systems.
+    ///
+    /// It is updated during `ReadyLabel::Post`.
+    /// If your system runs after that label, you will get the value from the current frame update.
+    /// If your system runs before that label, you will get the value from the previous frame update.
     pub fn progress(&self) -> Progress {
         self.last_progress
     }
