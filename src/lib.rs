@@ -101,14 +101,24 @@ impl Progress {
 /// If you have multiple different loading states, you can add the plugin for each one.
 ///
 /// ```rust
+/// # use bevy::prelude::*;
+/// # use bevy_loading::LoadingPlugin;
+/// # let mut app = AppBuilder::default();
 /// app.add_plugin(LoadingPlugin {
-///     loading_state: MyState::GameLoadingScreen,
+///     loading_state: MyState::GameLoading,
 ///     next_state: MyState::InGame,
 /// });
 /// app.add_plugin(LoadingPlugin {
-///     loading_state: MyState::SplashScreen,
+///     loading_state: MyState::Splash,
 ///     next_state: MyState::MainMenu,
 /// });
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// # enum MyState {
+/// #     Splash,
+/// #     MainMenu,
+/// #     GameLoading,
+/// #     InGame,
+/// # }
 /// ```
 pub struct LoadingPlugin<S: BevyState> {
     /// The loading state during which progress will be tracked
@@ -121,23 +131,23 @@ impl<S: BevyState> Plugin for LoadingPlugin<S> {
     fn build(&self, app: &mut AppBuilder) {
         app.init_resource::<asset::AssetsLoading>();
         app.add_system_set(
-            SystemSet::on_enter(self.loading_state).with_system(loadstate_enter.system()),
+            SystemSet::on_enter(self.loading_state.clone()).with_system(loadstate_enter.system()),
         );
         app.add_system_set(
-            SystemSet::on_update(self.loading_state)
+            SystemSet::on_update(self.loading_state.clone())
                 .with_system(clear_progress.system().label(ReadyLabel::Pre))
                 .with_system(
                     check_progress::<S>
                         .system()
                         .config(|(s, _, _)| {
-                            *s = Some(Some(self.next_state));
+                            *s = Some(Some(self.next_state.clone()));
                         })
                         .label(ReadyLabel::Post),
                 )
                 .with_system(track(asset::assets_progress.system())),
         );
         app.add_system_set(
-            SystemSet::on_exit(self.loading_state)
+            SystemSet::on_exit(self.loading_state.clone())
                 .with_system(loadstate_exit.system())
                 .with_system(asset::assets_loading_reset.system()),
         );
@@ -149,13 +159,26 @@ impl<S: BevyState> Plugin for LoadingPlugin<S> {
 /// Add your systems like this:
 ///
 /// ```rust
-/// SystemSet::on_update(my_loading_state)
+/// # use bevy::prelude::*;
+/// # use bevy_loading::{LoadingPlugin, track, Progress};
+/// # let mut app = AppBuilder::default();
+/// # app.add_system_set(
+/// SystemSet::on_update(MyState::GameLoading)
 ///     .with_system(track(my_loading_system.system()))
+/// # );
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// # enum MyState {
+/// #     GameLoading,
+/// # }
+/// # fn my_loading_system()-> Progress {
+/// #     Progress::default()
+/// # }
 /// ```
 pub fn track<S: System<In = (), Out = Progress>>(s: S) -> ParallelSystemDescriptor {
     s.chain(tracker.system())
         .before(ReadyLabel::Post)
         .after(ReadyLabel::Pre)
+        .into()
 }
 
 /// Label to control system execution order
@@ -206,7 +229,8 @@ impl ProgressCounter {
     pub fn manually_tick(&self, progress: Progress) {
         self.total.fetch_add(progress.total, MemOrdering::Release);
         // use `min` to clamp in case a bad user provides `done > total`
-        self.done.fetch_add(progress.done.min(progress.total), MemOrdering::Release);
+        self.done
+            .fetch_add(progress.done.min(progress.total), MemOrdering::Release);
     }
 }
 
@@ -237,7 +261,7 @@ fn check_progress<S: BevyState>(
 
     if progress.is_ready() {
         if let Some(next_state) = &*next_state {
-            state.set(*next_state).ok();
+            state.set(next_state.clone()).ok();
         }
     }
 }
@@ -248,5 +272,5 @@ fn clear_progress(counter: ResMut<ProgressCounter>) {
 }
 
 /// Marker trait for all types that are valid for use as Bevy States
-pub trait BevyState: Component + Debug + Copy + Eq + Hash {}
-impl<T: Component + Debug + Copy + Eq + Hash> BevyState for T {}
+pub trait BevyState: Component + Debug + Clone + Eq + Hash {}
+impl<T: Component + Debug + Clone + Eq + Hash> BevyState for T {}
