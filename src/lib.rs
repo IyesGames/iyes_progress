@@ -128,7 +128,7 @@ pub struct LoadingPlugin<S: BevyState> {
 }
 
 impl<S: BevyState> Plugin for LoadingPlugin<S> {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         app.init_resource::<asset::AssetsLoading>();
         app.add_system_set(
             SystemSet::on_enter(self.loading_state.clone()).with_system(loadstate_enter.system()),
