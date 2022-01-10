@@ -53,7 +53,7 @@ fn main() {
 
 struct MyUiAssets {
     ui_font: Handle<Font>,
-    btn_tex: Handle<Texture>,
+    btn_img: Handle<Image>,
 }
 
 fn load_ui_assets(
@@ -63,16 +63,16 @@ fn load_ui_assets(
     mut loading: ResMut<AssetsLoading>,
 ) {
     let ui_font = ass.load("font.ttf");
-    let btn_tex = ass.load("btn.png");
+    let btn_img = ass.load("btn.png");
     // etc ...
 
     // don't forget to add them so they can be tracked:
     loading.add(&ui_font);
-    loading.add(&btn_tex);
+    loading.add(&btn_img);
 
     commands.insert_resource(MyUiAssets {
         ui_font,
-        btn_tex,
+        btn_img,
     });
 }
 

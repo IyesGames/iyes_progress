@@ -47,6 +47,7 @@ a game loading screen.
 | Plugin Version | Bevy Version |
 |----------------|--------------|
 | `0.1`          | `0.5`        |
-| `main`         | `0.5`        |
+| `0.2`          | `0.6`        |
+| `main`         | `0.6`        |
 | `bevy_main`    | `main`       |
 
