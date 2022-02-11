@@ -38,8 +38,7 @@ use std::hash::Hash;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering as MemOrdering;
 
-use bevy::ecs::component::Component;
-use bevy::ecs::schedule::ParallelSystemDescriptor;
+use bevy::ecs::schedule::{ParallelSystemDescriptor, StateData};
 use bevy::prelude::*;
 
 pub mod asset;
@@ -120,14 +119,14 @@ impl Progress {
 /// #     InGame,
 /// # }
 /// ```
-pub struct LoadingPlugin<S: BevyState> {
+pub struct LoadingPlugin<S: StateData> {
     /// The loading state during which progress will be tracked
     pub loading_state: S,
     /// The next state to transition to, when all progress completes
     pub next_state: S,
 }
 
-impl<S: BevyState> Plugin for LoadingPlugin<S> {
+impl<S: StateData> Plugin for LoadingPlugin<S> {
     fn build(&self, app: &mut App) {
         app.init_resource::<asset::AssetsLoading>();
         app.add_system_set(
@@ -246,7 +245,7 @@ fn tracker(In(progress): In<Progress>, counter: Res<ProgressCounter>) {
     counter.manually_tick(progress);
 }
 
-fn check_progress<S: BevyState>(
+fn check_progress<S: StateData>(
     next_state: Local<Option<S>>,
     mut counter: ResMut<ProgressCounter>,
     mut state: ResMut<State<S>>,
@@ -270,7 +269,3 @@ fn clear_progress(counter: ResMut<ProgressCounter>) {
     counter.done.store(0, MemOrdering::Release);
     counter.total.store(0, MemOrdering::Release);
 }
-
-/// Marker trait for all types that are valid for use as Bevy States
-pub trait BevyState: Component + Debug + Clone + Eq + Hash {}
-impl<T: Component + Debug + Clone + Eq + Hash> BevyState for T {}

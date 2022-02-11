@@ -3,7 +3,7 @@
 use bevy::prelude::*;
 use bevy_loading::prelude::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Component)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum AppState {
     Splash,
     MainMenu,
