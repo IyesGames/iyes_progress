@@ -22,7 +22,7 @@ fn main() {
         // Add loading plugin for our game loading screen
         .add_plugin(LoadingPlugin::new(AppState::GameLoading).continue_to(AppState::InGame))
         // Load our UI assets during our splash screen
-        .add_system_set(SystemSet::on_enter(AppState::Splash).with_system(load_ui_assets.system()))
+        .add_system_set(SystemSet::on_enter(AppState::Splash).with_system(load_ui_assets))
         // Our game loading screen
         .add_system_set(
             SystemSet::on_update(AppState::GameLoading)

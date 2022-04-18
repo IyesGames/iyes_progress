@@ -31,18 +31,24 @@
 //! You can have multiple instances of the plugin for different loading states. For example, you can load your UI
 //! assets for your main menu during a splash screen, and then prepare the game session and assets during
 //! a game loading screen.
-//!
+
+#![forbid(unsafe_code)]
+#![warn(missing_docs)]
 
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::ops::{Add, AddAssign};
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering as MemOrdering;
 
 use bevy::ecs::schedule::{ParallelSystemDescriptor, StateData};
+use bevy::ecs::system::SystemState;
 use bevy::prelude::*;
 
-pub mod asset;
+mod asset;
+pub use crate::asset::AssetsLoading;
 
+/// Most used imports from `bevy_loading`
 pub mod prelude {
     pub use crate::asset::AssetsLoading;
     pub use crate::track;
@@ -95,6 +101,24 @@ impl Progress {
     }
 }
 
+impl Add for Progress {
+    type Output = Progress;
+
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self.done += rhs.done;
+        self.total += rhs.total;
+
+        self
+    }
+}
+
+impl AddAssign for Progress {
+    fn add_assign(&mut self, rhs: Self) {
+        self.done += rhs.done;
+        self.total += rhs.total;
+    }
+}
+
 /// Add this plugin to your app, to use this crate for the specified loading state.
 ///
 /// If you have multiple different loading states, you can add the plugin for each one.
@@ -102,7 +126,7 @@ impl Progress {
 /// ```rust
 /// # use bevy::prelude::*;
 /// # use bevy_loading::LoadingPlugin;
-/// # let mut app = AppBuilder::default();
+/// # let mut app = App::default();
 /// app.add_plugin(LoadingPlugin::new(MyState::GameLoading).continue_to(MyState::InGame));
 /// app.add_plugin(LoadingPlugin::new(MyState::Splash).continue_to(MyState::MainMenu));
 /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -121,6 +145,7 @@ pub struct LoadingPlugin<S: StateData> {
 }
 
 impl<S: StateData> LoadingPlugin<S> {
+    /// Create a [`LoadingPlugin`] running during the given State
     pub fn new(loading_state: S) -> Self {
         LoadingPlugin {
             loading_state,
@@ -128,6 +153,8 @@ impl<S: StateData> LoadingPlugin<S> {
         }
     }
 
+    /// Configure the [`LoadingPlugin`] to move on to the given state as soon as all Progress
+    /// in the loading state is completed.
     pub fn continue_to(mut self, next_state: S) -> Self {
         self.next_state = Some(next_state);
 
@@ -143,8 +170,18 @@ impl<S: StateData> Plugin for LoadingPlugin<S> {
         );
         app.add_system_set(
             SystemSet::on_update(self.loading_state.clone())
-                .with_system(clear_progress.label(ReadyLabel::Pre))
-                .with_system(check_progress::<S>(self.next_state.clone()).label(ReadyLabel::Post))
+                .with_system(
+                    next_frame
+                        .exclusive_system()
+                        .at_start()
+                        .label(ProgressTracking::Preparation),
+                )
+                .with_system(
+                    check_progress::<S>(self.next_state.clone())
+                        .exclusive_system()
+                        .at_end()
+                        .label(ProgressTracking::CheckProgress),
+                )
                 .with_system(track(asset::assets_progress)),
         );
         app.add_system_set(
@@ -162,7 +199,7 @@ impl<S: StateData> Plugin for LoadingPlugin<S> {
 /// ```rust
 /// # use bevy::prelude::*;
 /// # use bevy_loading::{LoadingPlugin, track, Progress};
-/// # let mut app = AppBuilder::default();
+/// # let mut app = App::default();
 /// # app.add_system_set(
 /// SystemSet::on_update(MyState::GameLoading)
 ///     .with_system(track(my_loading_system))
@@ -176,9 +213,12 @@ impl<S: StateData> Plugin for LoadingPlugin<S> {
 /// # }
 /// ```
 pub fn track<Params, S: IntoSystem<(), Progress, Params>>(s: S) -> ParallelSystemDescriptor {
-    s.chain(tracker)
-        .before(ReadyLabel::Post)
-        .after(ReadyLabel::Pre)
+    s.chain(
+        |In(progress): In<Progress>, counter: Res<ProgressCounter>| {
+            counter.manually_track(progress)
+        },
+    )
+    .label(ProgressTracking::Tracking)
 }
 
 /// Label to control system execution order
@@ -191,9 +231,22 @@ pub fn track<Params, S: IntoSystem<(), Progress, Params>>(s: S) -> ParallelSyste
 /// from the current frame, your system should run *after* `ReadyLabel::Post`. Otherwise,
 /// you will get the value from the previous frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemLabel)]
-pub enum ReadyLabel {
-    Pre,
-    Post,
+pub enum ProgressTracking {
+    /// All systems tracking progress should run after this label
+    ///
+    /// The label is only needed for `at_start` exclusive systems.
+    /// Any parallel system or exclusive system at a different position
+    /// will run after it automatically.
+    Preparation,
+    /// Any system reading progress should ran after this label.
+    /// All systems wrapped in [`track`] automatically get this label.
+    Tracking,
+    /// All systems tracking progress should run before this label
+    ///
+    /// The label is only needed for `at_end` exclusive systems.
+    /// Any parallel system or exclusive system at a different position
+    /// will run before it automatically.
+    CheckProgress,
 }
 
 /// Resource for tracking overall progress
@@ -206,7 +259,7 @@ pub struct ProgressCounter {
     // allowing them to run in parallel
     done: AtomicU32,
     total: AtomicU32,
-    last_progress: Progress,
+    persisted: Progress,
 }
 
 impl ProgressCounter {
@@ -214,23 +267,30 @@ impl ProgressCounter {
     ///
     /// This is the combined total of all systems.
     ///
-    /// It is updated during `ReadyLabel::Post`.
-    /// If your system runs after that label, you will get the value from the current frame update.
-    /// If your system runs before that label, you will get the value from the previous frame update.
+    /// To get correct information, make sure that you call this function only after
+    /// all your systems that track progress finished
     pub fn progress(&self) -> Progress {
-        self.last_progress
+        let total = self.total.load(MemOrdering::Acquire);
+        let done = self.done.load(MemOrdering::Acquire);
+
+        Progress { done, total }
     }
 
     /// Add some amount of progress to the running total for the current frame.
     ///
-    /// You typically don't need to call this function yourself.
-    ///
-    /// It may be useful for advanced use cases, like from exclusive systems.
-    pub fn manually_tick(&self, progress: Progress) {
+    /// In most cases you do not want to call this function yourself.
+    /// Let your systems return a [`Progress`] and wrap them in [`track`] instead.
+    pub fn manually_track(&self, progress: Progress) {
         self.total.fetch_add(progress.total, MemOrdering::Release);
         // use `min` to clamp in case a bad user provides `done > total`
         self.done
             .fetch_add(progress.done.min(progress.total), MemOrdering::Release);
+    }
+
+    /// Persist progress for the rest of the current state
+    pub fn persist_progress(&mut self, progress: Progress) {
+        self.manually_track(progress);
+        self.persisted += progress;
     }
 }
 
@@ -242,21 +302,13 @@ fn loadstate_exit(mut commands: Commands) {
     commands.remove_resource::<ProgressCounter>();
 }
 
-fn tracker(In(progress): In<Progress>, counter: Res<ProgressCounter>) {
-    counter.manually_tick(progress);
-}
+fn check_progress<S: StateData>(next_state: Option<S>) -> impl FnMut(&mut World) {
+    move |world| {
+        let mut system_state: SystemState<(Res<ProgressCounter>, ResMut<State<S>>)> =
+            SystemState::new(world);
+        let (counter, mut state) = system_state.get_mut(world);
 
-fn check_progress<S: StateData>(
-    next_state: Option<S>,
-) -> impl FnMut(ResMut<ProgressCounter>, ResMut<State<S>>) {
-    move |mut counter, mut state| {
-        let total = counter.total.load(MemOrdering::Acquire);
-        let done = counter.done.load(MemOrdering::Acquire);
-
-        let progress = Progress { done, total };
-
-        // Update total progress to report to user
-        counter.last_progress = progress;
+        let progress = counter.progress();
 
         if progress.is_ready() {
             if let Some(next_state) = &next_state {
@@ -266,7 +318,13 @@ fn check_progress<S: StateData>(
     }
 }
 
-fn clear_progress(counter: ResMut<ProgressCounter>) {
-    counter.done.store(0, MemOrdering::Release);
-    counter.total.store(0, MemOrdering::Release);
+fn next_frame(world: &mut World) {
+    let counter = world.resource::<ProgressCounter>();
+
+    counter
+        .done
+        .store(counter.persisted.done, MemOrdering::Release);
+    counter
+        .total
+        .store(counter.persisted.total, MemOrdering::Release);
 }
