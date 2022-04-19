@@ -103,14 +103,8 @@ impl Progress {
 /// # use bevy::prelude::*;
 /// # use bevy_loading::LoadingPlugin;
 /// # let mut app = AppBuilder::default();
-/// app.add_plugin(LoadingPlugin {
-///     loading_state: MyState::GameLoading,
-///     next_state: MyState::InGame,
-/// });
-/// app.add_plugin(LoadingPlugin {
-///     loading_state: MyState::Splash,
-///     next_state: MyState::MainMenu,
-/// });
+/// app.add_plugin(LoadingPlugin::new(MyState::GameLoading).continue_to(MyState::InGame));
+/// app.add_plugin(LoadingPlugin::new(MyState::Splash).continue_to(MyState::MainMenu));
 /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// # enum MyState {
 /// #     Splash,
@@ -123,32 +117,40 @@ pub struct LoadingPlugin<S: StateData> {
     /// The loading state during which progress will be tracked
     pub loading_state: S,
     /// The next state to transition to, when all progress completes
-    pub next_state: S,
+    pub next_state: Option<S>,
+}
+
+impl<S: StateData> LoadingPlugin<S> {
+    pub fn new(loading_state: S) -> Self {
+        LoadingPlugin {
+            loading_state,
+            next_state: None,
+        }
+    }
+
+    pub fn continue_to(mut self, next_state: S) -> Self {
+        self.next_state = Some(next_state);
+
+        self
+    }
 }
 
 impl<S: StateData> Plugin for LoadingPlugin<S> {
     fn build(&self, app: &mut App) {
         app.init_resource::<asset::AssetsLoading>();
         app.add_system_set(
-            SystemSet::on_enter(self.loading_state.clone()).with_system(loadstate_enter.system()),
+            SystemSet::on_enter(self.loading_state.clone()).with_system(loadstate_enter),
         );
         app.add_system_set(
             SystemSet::on_update(self.loading_state.clone())
-                .with_system(clear_progress.system().label(ReadyLabel::Pre))
-                .with_system(
-                    check_progress::<S>
-                        .system()
-                        .config(|(s, _, _)| {
-                            *s = Some(Some(self.next_state.clone()));
-                        })
-                        .label(ReadyLabel::Post),
-                )
-                .with_system(track(asset::assets_progress.system())),
+                .with_system(clear_progress.label(ReadyLabel::Pre))
+                .with_system(check_progress::<S>(self.next_state.clone()).label(ReadyLabel::Post))
+                .with_system(track(asset::assets_progress)),
         );
         app.add_system_set(
             SystemSet::on_exit(self.loading_state.clone())
-                .with_system(loadstate_exit.system())
-                .with_system(asset::assets_loading_reset.system()),
+                .with_system(loadstate_exit)
+                .with_system(asset::assets_loading_reset),
         );
     }
 }
@@ -163,7 +165,7 @@ impl<S: StateData> Plugin for LoadingPlugin<S> {
 /// # let mut app = AppBuilder::default();
 /// # app.add_system_set(
 /// SystemSet::on_update(MyState::GameLoading)
-///     .with_system(track(my_loading_system.system()))
+///     .with_system(track(my_loading_system))
 /// # );
 /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// # enum MyState {
@@ -177,7 +179,6 @@ pub fn track<Params, S: IntoSystem<(), Progress, Params>>(s: S) -> ParallelSyste
     s.chain(tracker)
         .before(ReadyLabel::Post)
         .after(ReadyLabel::Pre)
-        .into()
 }
 
 /// Label to control system execution order
@@ -246,21 +247,21 @@ fn tracker(In(progress): In<Progress>, counter: Res<ProgressCounter>) {
 }
 
 fn check_progress<S: StateData>(
-    next_state: Local<Option<S>>,
-    mut counter: ResMut<ProgressCounter>,
-    mut state: ResMut<State<S>>,
-) {
-    let total = counter.total.load(MemOrdering::Acquire);
-    let done = counter.done.load(MemOrdering::Acquire);
+    next_state: Option<S>,
+) -> impl FnMut(ResMut<ProgressCounter>, ResMut<State<S>>) {
+    move |mut counter, mut state| {
+        let total = counter.total.load(MemOrdering::Acquire);
+        let done = counter.done.load(MemOrdering::Acquire);
 
-    let progress = Progress { done, total };
+        let progress = Progress { done, total };
 
-    // Update total progress to report to user
-    counter.last_progress = progress;
+        // Update total progress to report to user
+        counter.last_progress = progress;
 
-    if progress.is_ready() {
-        if let Some(next_state) = &*next_state {
-            state.set(next_state.clone()).ok();
+        if progress.is_ready() {
+            if let Some(next_state) = &next_state {
+                state.set(next_state.clone()).ok();
+            }
         }
     }
 }

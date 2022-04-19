@@ -15,38 +15,24 @@ fn main() {
     App::new()
         // Init bevy
         .add_plugins(DefaultPlugins)
-
         // Add our state type
         .add_state(AppState::Splash)
-
         // Add loading plugin for the splash screen
-        .add_plugin(LoadingPlugin {
-            loading_state: AppState::Splash,
-            next_state: AppState::MainMenu,
-        })
+        .add_plugin(LoadingPlugin::new(AppState::Splash).continue_to(AppState::MainMenu))
         // Add loading plugin for our game loading screen
-        .add_plugin(LoadingPlugin {
-            loading_state: AppState::GameLoading,
-            next_state: AppState::InGame,
-        })
-
+        .add_plugin(LoadingPlugin::new(AppState::GameLoading).continue_to(AppState::InGame))
         // Load our UI assets during our splash screen
-        .add_system_set(
-            SystemSet::on_enter(AppState::Splash)
-                .with_system(load_ui_assets.system())
-        )
-
+        .add_system_set(SystemSet::on_enter(AppState::Splash).with_system(load_ui_assets.system()))
         // Our game loading screen
         .add_system_set(
             SystemSet::on_update(AppState::GameLoading)
                 // systems that implement tasks to be tracked for completion:
                 // (wrap systems that return `Progress` with `track`)
                 .with_system(track(net_init_session))
-                .with_system(track(worldgen))
-
+                .with_system(track(world_generation))
                 // we can also add regular untracked systems to our loading screen,
                 // like to draw our progress bar:
-                .with_system(ui_progress_bar)
+                .with_system(ui_progress_bar),
         )
         .run();
 }
@@ -70,14 +56,10 @@ fn load_ui_assets(
     loading.add(&ui_font);
     loading.add(&btn_img);
 
-    commands.insert_resource(MyUiAssets {
-        ui_font,
-        btn_img,
-    });
+    commands.insert_resource(MyUiAssets { ui_font, btn_img });
 }
 
-fn net_init_session(
-    // ...
+fn net_init_session(// ...
 ) -> Progress {
     if my_session_is_ready() {
         // we can convert a `bool` into a `Progress`
@@ -89,7 +71,7 @@ fn net_init_session(
     false.into()
 }
 
-fn worldgen(
+fn world_generation(
     // ...
     mut next_chunk_id: Local<u32>,
 ) -> Progress {
@@ -135,4 +117,3 @@ fn my_session_try_init() {
 fn gen_chunk(_id: u32) {
     unimplemented!()
 }
-
