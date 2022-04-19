@@ -307,9 +307,7 @@ fn check_progress<S: StateData>(next_state: Option<S>) -> impl FnMut(&mut World)
         let mut system_state: SystemState<(Res<ProgressCounter>, ResMut<State<S>>)> =
             SystemState::new(world);
         let (counter, mut state) = system_state.get_mut(world);
-
         let progress = counter.progress();
-
         if progress.is_ready() {
             if let Some(next_state) = &next_state {
                 state.set(next_state.clone()).ok();
