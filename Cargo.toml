@@ -10,14 +10,14 @@ categories = ["game-engines"]
 description = "Bevy plugin to help implement loading states"
 
 [dependencies]
-bevy_ecs = "0.7"
-bevy_app = "0.7"
-bevy_asset = { version = "0.7", optional = true }
-bevy_utils = { version = "0.7", optional = true }
+bevy_ecs = { git = "https://github.com/bevyengine/bevy" }
+bevy_app = { git = "https://github.com/bevyengine/bevy" }
+bevy_asset = { git = "https://github.com/bevyengine/bevy", optional = true }
+bevy_utils = { git = "https://github.com/bevyengine/bevy", optional = true }
 
 [dependencies.iyes_loopless]
-version = "0.5"
-# path = "../iyes_loopless/"
+git = "https://github.com/IyesGames/iyes_loopless"
+branch = "bevy_main"
 optional = true
 default-features = false
 features = ["states", "app"]
@@ -26,9 +26,8 @@ features = ["states", "app"]
 assets = ["bevy_asset", "bevy_utils"]
 
 [dev-dependencies]
-bevy = "0.7"
-iyes_loopless = "0.5"
-# iyes_loopless = {path = "../iyes_loopless/"}
+bevy = { git = "https://github.com/bevyengine/bevy" }
+iyes_loopless = { git = "https://github.com/IyesGames/iyes_loopless", branch = "bevy_main" }
 
 [[example]]
 name = "full"
