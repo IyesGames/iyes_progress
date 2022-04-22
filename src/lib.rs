@@ -1,36 +1,42 @@
-//! Bevy Loading State Progress Tracking Helper Crate
+//! Progress Tracking Helper Crate
 //!
-//! This is a plugin for the Bevy game engine, to help you implement loading states.
+//! This crate helps you in cases where you need to track when a bunch of
+//! work has been completed, and perform a state transition.
 //!
-//! You might have a whole bunch of different tasks to do during a loading screen, before
-//! transitioning to the in-game state, depending on your game. For example:
-//!   - wait until your assets finish loading
-//!   - generate a world map
-//!   - download something from a server
-//!   - connect to a multiplayer server
-//!   - wait for other players to become ready
-//!   - any number of other things...
+//! The most typical use case are loading screens, where you might need to
+//! load assets, prepare the game world, etc… and then transition to the
+//! in-game state when everything is done.
 //!
-//! This plugin can help you track any such things, generally, and ergonomically.
+//! However, this crate is general, and could also be used for any number of
+//! other things, even things like cooldowns and animations (especially when
+//! used with `iyes_loopless` to easily have many state types).
 //!
-//! To use this plugin, add `LoadingPlugin` to your `App`, configuring it for the relevant app states.
+//! Works with either legacy Bevy states (default) or `iyes_loopless` (via
+//! optional cargo feature).
 //!
-//! For assets, load them as normal, and then add their handles to the `AssetsLoading` resource
-//! from this crate.
+//! To use this plugin, add one or more instances `ProgressPlugin` to your
+//! `App`, configuring for the relevant states.
 //!
-//! For other things, implement them as regular Bevy systems that return a `Progress` struct.
-//! The return value indicates the progress of your loading task. You can add such "loading systems"
-//! to your loading state's `on_update`, by wrapping them using the `track` function.
+//! Implement your tasks as regular Bevy systems that return a `Progress`
+//! and add them to your respective state(s) using `.track_progress()`.
 //!
-//! This plugin will check the progress of all tracked systems every frame, and transition to your
-//! next state when all of them report completion.
+//! The return value indicates how much progress a system has completed so
+//! far. It specifies the currently completed "units of work" as well as
+//! the expected total.
 //!
-//! If you need to access the overall progress information (say, to display a progress bar),
-//! you can get it from the `ProgressCounter` resource.
+//! When all registered systems return a progress value where `done >= total`,
+//! your desired state transition will be performed automatically.
 //!
-//! You can have multiple instances of the plugin for different loading states. For example, you can load your UI
-//! assets for your main menu during a splash screen, and then prepare the game session and assets during
-//! a game loading screen.
+//! If you need to access the overall progress information (say, to display a
+//! progress bar), you can get it from the `ProgressCounter` resource.
+//!
+//! ---
+//!
+//! There is also an optional feature (`assets`) implementing basic asset
+//! loading tracking. Just add your handles to the `AssetsLoading` resource.
+//!
+//! If you need something more advanced, I recommend the `bevy_asset_loader`
+//! crate, which now has support for integrating with this crate. :)
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -41,34 +47,35 @@ use std::ops::{Add, AddAssign};
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering as MemOrdering;
 
-use bevy::ecs::schedule::{ParallelSystemDescriptor, StateData};
-use bevy::ecs::system::SystemState;
-use bevy::prelude::*;
+use bevy_ecs::schedule::StateData;
+use bevy_ecs::prelude::*;
+use bevy_app::prelude::*;
 
+#[cfg(feature = "assets")]
 mod asset;
-pub use crate::asset::AssetsLoading;
 
-/// Most used imports from `bevy_loading`
+/// Most used imports
 pub mod prelude {
-    pub use crate::asset::AssetsLoading;
-    pub use crate::track;
-    pub use crate::LoadingPlugin;
+    pub use crate::ProgressPlugin;
     pub use crate::Progress;
+    pub use crate::ProgressSystem;
+    pub use crate::ProgressCounter;
+    #[cfg(feature = "assets")]
+    pub use crate::asset::AssetsLoading;
 }
 
-/// Progress reported by a loading system
+/// Progress reported by a system
 ///
-/// Your loading systems must return a value of this type.
 /// It indicates how much work that system has still left to do.
 ///
 /// When the value of `done` reaches the value of `total`, the system is considered "ready".
-/// When all systems in your loading state are "ready", we will transition to the next application state.
+/// When all systems in your state are "ready", we will transition to the next state.
 ///
 /// For your convenience, you can easily convert `bool`s into this type.
 /// You can also convert `Progress` values into floats in the 0.0..1.0 range.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Progress {
-    /// Units of work completed
+    /// Units of work completed during this execution of the system
     pub done: u32,
     /// Total units of work expected
     pub total: u32,
@@ -119,13 +126,24 @@ impl AddAssign for Progress {
     }
 }
 
-/// Add this plugin to your app, to use this crate for the specified loading state.
+/// Add this plugin to your app, to use this crate for the specified state.
 ///
-/// If you have multiple different loading states, you can add the plugin for each one.
+/// If you have multiple different states that need progress tracking,
+/// you can add the plugin for each one.
+///
+/// **Warning**: Progress tracking will only work in some stages!
+///
+/// If not using `iyes_loopless`, it is only allowed in `CoreStage::Update`.
+///
+/// If using `iyes_loopless`, it is allowed in all stages after the
+/// `StateTransitionStage` responsible for your state type, up to and including
+/// `CoreStage::Last`.
+///
+/// You must ensure to not add any progress-tracked systems to any other stages!
 ///
 /// ```rust
 /// # use bevy::prelude::*;
-/// # use bevy_loading::LoadingPlugin;
+/// # use bevy_loading::ProgressPlugin;
 /// # let mut app = App::default();
 /// app.add_plugin(LoadingPlugin::new(MyState::GameLoading).continue_to(MyState::InGame));
 /// app.add_plugin(LoadingPlugin::new(MyState::Splash).continue_to(MyState::MainMenu));
@@ -137,23 +155,23 @@ impl AddAssign for Progress {
 /// #     InGame,
 /// # }
 /// ```
-pub struct LoadingPlugin<S: StateData> {
+pub struct ProgressPlugin<S: StateData> {
     /// The loading state during which progress will be tracked
-    pub loading_state: S,
+    pub state: S,
     /// The next state to transition to, when all progress completes
     pub next_state: Option<S>,
 }
 
-impl<S: StateData> LoadingPlugin<S> {
-    /// Create a [`LoadingPlugin`] running during the given State
-    pub fn new(loading_state: S) -> Self {
-        LoadingPlugin {
-            loading_state,
+impl<S: StateData> ProgressPlugin<S> {
+    /// Create a [`ProgressPlugin`] running during the given State
+    pub fn new(state: S) -> Self {
+        ProgressPlugin {
+            state,
             next_state: None,
         }
     }
 
-    /// Configure the [`LoadingPlugin`] to move on to the given state as soon as all Progress
+    /// Configure the [`ProgressPlugin`] to move on to the given state as soon as all Progress
     /// in the loading state is completed.
     pub fn continue_to(mut self, next_state: S) -> Self {
         self.next_state = Some(next_state);
@@ -162,76 +180,147 @@ impl<S: StateData> LoadingPlugin<S> {
     }
 }
 
-impl<S: StateData> Plugin for LoadingPlugin<S> {
+#[cfg(not(feature = "iyes_loopless"))]
+impl<S: StateData> Plugin for ProgressPlugin<S> {
     fn build(&self, app: &mut App) {
-        app.init_resource::<asset::AssetsLoading>();
         app.add_system_set(
-            SystemSet::on_enter(self.loading_state.clone()).with_system(loadstate_enter),
+            SystemSet::on_enter(self.state.clone())
+                .with_system(loadstate_enter),
         );
         app.add_system_set(
-            SystemSet::on_update(self.loading_state.clone())
+            SystemSet::on_update(self.state.clone())
                 .with_system(
                     next_frame
                         .exclusive_system()
                         .at_start()
-                        .label(ProgressTracking::Preparation),
+                        .label(ProgressSystemLabel::Preparation),
                 )
                 .with_system(
                     check_progress::<S>(self.next_state.clone())
                         .exclusive_system()
                         .at_end()
-                        .label(ProgressTracking::CheckProgress),
+                        .label(ProgressSystemLabel::CheckProgress),
                 )
-                .with_system(track(asset::assets_progress)),
         );
         app.add_system_set(
-            SystemSet::on_exit(self.loading_state.clone())
+            SystemSet::on_exit(self.state.clone())
                 .with_system(loadstate_exit)
-                .with_system(asset::assets_loading_reset),
         );
+
+        #[cfg(feature = "assets")]
+        {
+            app.init_resource::<asset::AssetsLoading>();
+            app.add_system_set(
+                SystemSet::on_update(self.state.clone())
+                    .with_system(asset::assets_progress.track_progress()),
+            );
+            app.add_system_set(
+                SystemSet::on_exit(self.state.clone())
+                    .with_system(asset::assets_loading_reset),
+            );
+        }
     }
 }
 
-/// Wrap a loading system, to add to your App.
-///
-/// Add your systems like this:
-///
-/// ```rust
-/// # use bevy::prelude::*;
-/// # use bevy_loading::{LoadingPlugin, track, Progress};
-/// # let mut app = App::default();
-/// # app.add_system_set(
-/// SystemSet::on_update(MyState::GameLoading)
-///     .with_system(track(my_loading_system))
-/// # );
-/// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-/// # enum MyState {
-/// #     GameLoading,
-/// # }
-/// # fn my_loading_system()-> Progress {
-/// #     Progress::default()
-/// # }
-/// ```
-pub fn track<Params, S: IntoSystem<(), Progress, Params>>(s: S) -> ParallelSystemDescriptor {
-    s.chain(
-        |In(progress): In<Progress>, counter: Res<ProgressCounter>| {
-            counter.manually_track(progress)
-        },
-    )
-    .label(ProgressTracking::Tracking)
+#[cfg(feature = "iyes_loopless")]
+impl<S: StateData> Plugin for ProgressPlugin<S> {
+    fn build(&self, app: &mut App) {
+        use iyes_loopless::prelude::*;
+        use iyes_loopless::condition::IntoConditionalExclusiveSystem;
+
+        app.add_enter_system(self.state.clone(), loadstate_enter);
+        app.add_exit_system(self.state.clone(), loadstate_exit);
+
+        #[derive(Debug, Clone, PartialEq, Eq, Hash, StageLabel)]
+        struct StageLabel(String);
+        let stagelabel = StageLabel(format!("iyes_progress init: {:?}", &self.state));
+
+        app.add_stage_after(
+            iyes_loopless::state::app::StateTransitionStageLabel::from_type::<S>(),
+            stagelabel.clone(),
+            SystemStage::single_threaded()
+        );
+
+        app.add_system_to_stage(
+            stagelabel,
+            next_frame
+                .run_in_state(self.state.clone())
+                .at_start()
+                .label(ProgressSystemLabel::Preparation),
+        );
+
+        app.add_system_to_stage(
+            CoreStage::Last,
+            check_progress::<S>(self.next_state.clone())
+                .run_in_state(self.state.clone())
+                .at_end()
+                .label(ProgressSystemLabel::CheckProgress),
+        );
+
+        #[cfg(feature = "assets")]
+        {
+            app.init_resource::<asset::AssetsLoading>();
+            app.add_exit_system(self.state.clone(), asset::assets_loading_reset);
+            app.add_system(
+                asset::assets_progress
+                    .track_progress()
+                    .run_in_state(self.state.clone())
+            );
+        }
+    }
+}
+
+#[cfg(not(feature = "iyes_loopless"))]
+/// Extension trait for systems with Progress tracking
+pub trait ProgressSystem<Params>: IntoSystem<(), Progress, Params> {
+    /// Call this to add your system returning [`Progress`] to your [`App`]
+    ///
+    /// This adds the functionality for tracking the returned Progress.
+    fn track_progress(self) -> bevy_ecs::schedule::ParallelSystemDescriptor;
+}
+
+#[cfg(not(feature = "iyes_loopless"))]
+impl<S, Params> ProgressSystem<Params> for S
+where S: IntoSystem<(), Progress, Params>
+{
+    fn track_progress(self) -> bevy_ecs::schedule::ParallelSystemDescriptor {
+        self.chain(
+            |In(progress): In<Progress>, counter: Res<ProgressCounter>| {
+                counter.manually_track(progress)
+            },
+        )
+        .label(ProgressSystemLabel::Tracking)
+    }
+}
+
+#[cfg(feature = "iyes_loopless")]
+/// Extension trait for systems with Progress tracking
+pub trait ProgressSystem<Params>: IntoSystem<(), Progress, Params> {
+    /// Call this to add your system returning [`Progress`] to your [`App`]
+    ///
+    /// This adds the functionality for tracking the returned Progress.
+    fn track_progress(self) -> iyes_loopless::condition::ConditionalSystemDescriptor;
+}
+
+#[cfg(feature = "iyes_loopless")]
+impl<S, Params> ProgressSystem<Params> for S
+where S: IntoSystem<(), Progress, Params>
+{
+    fn track_progress(self) -> iyes_loopless::condition::ConditionalSystemDescriptor {
+        use iyes_loopless::condition::IntoConditionalSystem;
+        self.chain(
+            |In(progress): In<Progress>, counter: Res<ProgressCounter>| {
+                counter.manually_track(progress)
+            },
+        )
+        .into_conditional()
+        .label(ProgressSystemLabel::Tracking)
+    }
 }
 
 /// Label to control system execution order
-///
-/// Use this if you want to schedule systems to run before or after any tracked systems.
-///
-/// All tracked systems run after `ReadyLabel::Pre` and before `ReadyLabel::Post`.
-///
-/// If you need the latest progress information (by calling `ProgressCounter::progress`)
-/// from the current frame, your system should run *after* `ReadyLabel::Post`. Otherwise,
-/// you will get the value from the previous frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemLabel)]
-pub enum ProgressTracking {
+pub enum ProgressSystemLabel {
     /// All systems tracking progress should run after this label
     ///
     /// The label is only needed for `at_start` exclusive systems.
@@ -251,7 +340,8 @@ pub enum ProgressTracking {
 
 /// Resource for tracking overall progress
 ///
-/// This resource is automatically created when entering the load state and removed when exiting it.
+/// This resource is automatically created when entering a state that was
+/// configured using [`ProgressPlugin`], and removed when exiting it.
 #[derive(Default)]
 pub struct ProgressCounter {
     // use atomics to track overall progress,
@@ -302,15 +392,25 @@ fn loadstate_exit(mut commands: Commands) {
     commands.remove_resource::<ProgressCounter>();
 }
 
+#[cfg(not(feature = "iyes_loopless"))]
 fn check_progress<S: StateData>(next_state: Option<S>) -> impl FnMut(&mut World) {
     move |world| {
-        let mut system_state: SystemState<(Res<ProgressCounter>, ResMut<State<S>>)> =
-            SystemState::new(world);
-        let (counter, mut state) = system_state.get_mut(world);
-        let progress = counter.progress();
+        let progress = world.resource::<ProgressCounter>().progress();
         if progress.is_ready() {
             if let Some(next_state) = &next_state {
+                let mut state = world.resource_mut::<State<S>>();
                 state.set(next_state.clone()).ok();
+            }
+        }
+    }
+}
+#[cfg(feature = "iyes_loopless")]
+fn check_progress<S: StateData>(next_state: Option<S>) -> impl FnMut(&mut World) {
+    move |world| {
+        let progress = world.resource::<ProgressCounter>().progress();
+        if progress.is_ready() {
+            if let Some(next_state) = &next_state {
+                world.insert_resource(iyes_loopless::state::NextState(next_state.clone()));
             }
         }
     }

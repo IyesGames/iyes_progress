@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 
 use bevy::prelude::*;
-use bevy_loading::prelude::*;
+use iyes_loopless::prelude::*;
+use iyes_progress::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum AppState {
@@ -16,23 +17,24 @@ fn main() {
         // Init bevy
         .add_plugins(DefaultPlugins)
         // Add our state type
-        .add_state(AppState::Splash)
+        .add_loopless_state(AppState::Splash)
         // Add loading plugin for the splash screen
-        .add_plugin(LoadingPlugin::new(AppState::Splash).continue_to(AppState::MainMenu))
+        .add_plugin(ProgressPlugin::new(AppState::Splash).continue_to(AppState::MainMenu))
         // Add loading plugin for our game loading screen
-        .add_plugin(LoadingPlugin::new(AppState::GameLoading).continue_to(AppState::InGame))
+        .add_plugin(ProgressPlugin::new(AppState::GameLoading).continue_to(AppState::InGame))
         // Load our UI assets during our splash screen
-        .add_system_set(SystemSet::on_enter(AppState::Splash).with_system(load_ui_assets))
+        .add_enter_system(AppState::Splash, load_ui_assets)
         // Our game loading screen
         .add_system_set(
-            SystemSet::on_update(AppState::GameLoading)
+            ConditionSet::new()
+                .run_in_state(AppState::GameLoading)
                 // systems that implement tasks to be tracked for completion:
-                // (wrap systems that return `Progress` with `track`)
-                .with_system(track(net_init_session))
-                .with_system(track(world_generation))
+                .with_system(net_init_session.track_progress())
+                .with_system(world_generation.track_progress())
                 // we can also add regular untracked systems to our loading screen,
                 // like to draw our progress bar:
-                .with_system(ui_progress_bar),
+                .with_system(ui_progress_bar)
+                .into()
         )
         .run();
 }
@@ -92,7 +94,7 @@ fn world_generation(
 }
 
 fn ui_progress_bar(
-    counter: Res<bevy_loading::ProgressCounter>,
+    counter: Res<ProgressCounter>,
     // ...
 ) {
     // Get the overall loading progress

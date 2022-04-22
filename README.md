@@ -1,53 +1,61 @@
-# Bevy Loading State Progress Tracking Helper Crate
+# Progress Tracking Helper Crate
 
-[![Crates.io](https://img.shields.io/crates/v/bevy_loading)](https://crates.io/crates/bevy_loading)
-[![docs](https://docs.rs/bevy_loading/badge.svg)](https://docs.rs/bevy_loading/)
+[![Crates.io](https://img.shields.io/crates/v/iyes_progress)](https://crates.io/crates/iyes_progress)
+[![docs](https://docs.rs/iyes_progress/badge.svg)](https://docs.rs/iyes_progress/)
 [![MIT/Apache 2.0](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](./LICENSE)
 
-This is a plugin for the Bevy game engine, to help you implement loading states.
+**This crate was formerly known as `bevy_loading`!**
 
-You might have a whole bunch of different tasks to do during a loading screen, before
-transitioning to the in-game state, depending on your game. For example:
-  - wait until your assets finish loading
-  - generate a world map
-  - download something from a server
-  - connect to a multiplayer server
-  - wait for other players to become ready
-  - any number of other things...
+Bevy Compatibility:
 
-This plugin can help you track any such things, generally, and ergonomically.
+| Bevy Version | Plugin Version       |
+|--------------|----------------------|
+| `main`       | `bevy_main`          |
+| `0.7`        | `0.3`, `main`        |
+| `0.6`        | `bevy_loading = 0.2` |
+| `0.5`        | `bevy_loading = 0.1` |
+
+---
+This crate helps you in cases where you need to track when a bunch of
+work has been completed, and perform a state transition.
+
+The most typical use case are loading screens, where you might need to
+load assets, prepare the game world, etc… and then transition to the
+in-game state when everything is done.
+
+However, this crate is general, and could also be used for any number of
+other things, even things like cooldowns and animations (especially when
+used with [`iyes_loopless`] to easily have many state types).
+
+Works with either legacy Bevy states (default) or [`iyes_loopless`] (via
+optional cargo feature).
+
+To use this plugin, add one or more instances `ProgressPlugin` to your
+`App`, configuring for the relevant states.
+
+Implement your tasks as regular Bevy systems that return a `Progress`
+and add them to your respective state(s) using `.track_progress()`.
+
+The return value indicates how much progress a system has completed so
+far. It specifies the currently completed "units of work" as well as
+the expected total.
+
+When all registered systems return a progress value where `done >= total`,
+your desired state transition will be performed automatically.
+
+If you need to access the overall progress information (say, to display a
+progress bar), you can get it from the `ProgressCounter` resource.
+
+---
+
+There is also an optional feature (`assets`) implementing basic asset
+loading tracking. Just add your handles to the `AssetsLoading` resource.
+
+If you need something more advanced, I recommend the `bevy_asset_loader`
+crate, which now has support for integrating with this crate. :)
 
 ## Example
 
 See the [example](./examples/full.rs) for an overview of how to use this crate.
 
-## Explanation
-
-To use this plugin, add `LoadingPlugin` to your `App`, configuring it for the relevant app states.
-
-To track assets, load them as normal, and then add their handles to the `AssetsLoading` resource
-from this crate.
-
-For other things, implement them as regular Bevy systems that return a `Progress` struct.
-The return value indicates the progress of your loading task. You can add such "loading systems"
-to your loading state's `on_update`, by wrapping them using the `track` function.
-
-This plugin will check the progress of all tracked systems every frame, and transition to your
-next state when all of them report completion.
-
-If you need to access the overall progress information (say, to display a progress bar),
-you can get it from the `ProgressCounter` resource.
-
-You can have multiple instances of the plugin for different loading states. For example, you can load your UI
-assets for your main menu during a splash screen, and then prepare the game session and assets during
-a game loading screen.
-
-## Bevy Compatibility
-
-| Plugin Version | Bevy Version |
-|----------------|--------------|
-| `0.1`          | `0.5`        |
-| `0.2`          | `0.6`        |
-| `main`         | `0.6`        |
-| `bevy_main`    | `main`       |
-
+[`iyes_loopless`]: https://github.com/IyesGames/iyes_loopless
