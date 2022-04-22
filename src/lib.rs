@@ -131,6 +131,9 @@ impl AddAssign for Progress {
 /// If you have multiple different states that need progress tracking,
 /// you can add the plugin for each one.
 ///
+/// If you want the optional assets tracking ("assets" cargo feature), enable
+/// it with `.track_assets()`.
+///
 /// **Warning**: Progress tracking will only work in some stages!
 ///
 /// If not using `iyes_loopless`, it is only allowed in `CoreStage::Update`.
@@ -160,6 +163,8 @@ pub struct ProgressPlugin<S: StateData> {
     pub state: S,
     /// The next state to transition to, when all progress completes
     pub next_state: Option<S>,
+    /// Whether to enable the optional assets tracking feature
+    pub track_assets: bool,
 }
 
 impl<S: StateData> ProgressPlugin<S> {
@@ -168,6 +173,7 @@ impl<S: StateData> ProgressPlugin<S> {
         ProgressPlugin {
             state,
             next_state: None,
+            track_assets: false,
         }
     }
 
@@ -175,7 +181,13 @@ impl<S: StateData> ProgressPlugin<S> {
     /// in the loading state is completed.
     pub fn continue_to(mut self, next_state: S) -> Self {
         self.next_state = Some(next_state);
+        self
+    }
 
+    #[cfg(feature = "assets")]
+    /// Enable the optional assets tracking feature
+    pub fn track_assets(mut self) -> Self {
+        self.track_assets = true;
         self
     }
 }
@@ -208,7 +220,7 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
         );
 
         #[cfg(feature = "assets")]
-        {
+        if self.track_assets {
             app.init_resource::<asset::AssetsLoading>();
             app.add_system_set(
                 SystemSet::on_update(self.state.clone())
@@ -218,6 +230,11 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
                 SystemSet::on_exit(self.state.clone())
                     .with_system(asset::assets_loading_reset),
             );
+        }
+
+        #[cfg(not(feature = "assets"))]
+        if self.track_assets {
+            panic!("Enable the \"assets\" cargo feature to use assets tracking!");
         }
     }
 }
@@ -258,7 +275,7 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
         );
 
         #[cfg(feature = "assets")]
-        {
+        if self.track_assets {
             app.init_resource::<asset::AssetsLoading>();
             app.add_exit_system(self.state.clone(), asset::assets_loading_reset);
             app.add_system(
@@ -266,6 +283,11 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
                     .track_progress()
                     .run_in_state(self.state.clone())
             );
+        }
+
+        #[cfg(not(feature = "assets"))]
+        if self.track_assets {
+            panic!("Enable the \"assets\" cargo feature to use assets tracking!");
         }
     }
 }

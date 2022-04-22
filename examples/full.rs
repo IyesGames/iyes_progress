@@ -18,9 +18,12 @@ fn main() {
         .add_plugins(DefaultPlugins)
         // Add our state type
         .add_loopless_state(AppState::Splash)
-        // Add loading plugin for the splash screen
-        .add_plugin(ProgressPlugin::new(AppState::Splash).continue_to(AppState::MainMenu))
-        // Add loading plugin for our game loading screen
+        // Add plugin for the splash screen
+        .add_plugin(
+            ProgressPlugin::new(AppState::Splash)
+                .continue_to(AppState::MainMenu)
+                .track_assets())
+        // Add plugin for our game loading screen
         .add_plugin(ProgressPlugin::new(AppState::GameLoading).continue_to(AppState::InGame))
         // Load our UI assets during our splash screen
         .add_enter_system(AppState::Splash, load_ui_assets)
