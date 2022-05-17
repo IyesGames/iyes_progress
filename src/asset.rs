@@ -45,7 +45,8 @@ pub(crate) fn assets_progress(
     // TODO: avoid this temporary vec (HashSet::drain_filter is in Rust nightly)
     let mut done = vec![];
     for handle in loading.handles.iter() {
-        if server.get_load_state(*handle) != LoadState::Loading {
+        let loadstate = server.get_load_state(*handle);
+        if loadstate == LoadState::Loaded || loadstate == LoadState::Failed {
             done.push(*handle);
         }
     }
