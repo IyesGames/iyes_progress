@@ -16,7 +16,7 @@ bevy_asset = { version = "0.7", optional = true }
 bevy_utils = { version = "0.7", optional = true }
 
 [dependencies.iyes_loopless]
-version = "0.5"
+version = ">= 0.5, < 0.7"
 # path = "../iyes_loopless/"
 optional = true
 default-features = false
@@ -27,7 +27,7 @@ assets = ["bevy_asset", "bevy_utils"]
 
 [dev-dependencies]
 bevy = "0.7"
-iyes_loopless = "0.5"
+iyes_loopless = ">= 0.5, < 0.7"
 # iyes_loopless = {path = "../iyes_loopless/"}
 
 [[example]]
