@@ -10,14 +10,14 @@ categories = ["game-engines"]
 description = "Bevy plugin to help implement loading states"
 
 [dependencies]
-bevy_ecs = { git = "https://github.com/bevyengine/bevy" }
-bevy_app = { git = "https://github.com/bevyengine/bevy" }
-bevy_asset = { git = "https://github.com/bevyengine/bevy", optional = true }
-bevy_utils = { git = "https://github.com/bevyengine/bevy", optional = true }
+bevy_ecs = { git = "https://github.com/bevyengine/bevy", rev = "e0a8087408c9177927e00a538c8581ada74e1831" }
+bevy_app = { git = "https://github.com/bevyengine/bevy", rev = "e0a8087408c9177927e00a538c8581ada74e1831" }
+bevy_asset = { git = "https://github.com/bevyengine/bevy", rev = "e0a8087408c9177927e00a538c8581ada74e1831", optional = true }
+bevy_utils = { git = "https://github.com/bevyengine/bevy", rev = "e0a8087408c9177927e00a538c8581ada74e1831", optional = true }
 
 [dependencies.iyes_loopless]
-git = "https://github.com/IyesGames/iyes_loopless"
-branch = "bevy_main"
+git = "https://github.com/NiklasEi/iyes_loopless"
+rev = "be6146b466a0b52917ac65a42cc82dd659d1a3c8"
 optional = true
 default-features = false
 features = ["states", "app"]
@@ -26,8 +26,8 @@ features = ["states", "app"]
 assets = ["bevy_asset", "bevy_utils"]
 
 [dev-dependencies]
-bevy = { git = "https://github.com/bevyengine/bevy" }
-iyes_loopless = { git = "https://github.com/IyesGames/iyes_loopless", branch = "bevy_main" }
+bevy = { git = "https://github.com/bevyengine/bevy", rev = "e0a8087408c9177927e00a538c8581ada74e1831" }
+iyes_loopless = { git = "https://github.com/NiklasEi/iyes_loopless", rev = "be6146b466a0b52917ac65a42cc82dd659d1a3c8" }
 
 [[example]]
 name = "full"
