@@ -253,7 +253,7 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
         let stagelabel = StageLabel(format!("iyes_progress init: {:?}", &self.state));
 
         app.add_stage_after(
-            iyes_loopless::state::app::StateTransitionStageLabel::from_type::<S>(),
+            iyes_loopless::state::StateTransitionStageLabel::from_type::<S>(),
             stagelabel.clone(),
             SystemStage::single_threaded(),
         );
