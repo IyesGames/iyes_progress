@@ -16,7 +16,7 @@ bevy_asset = { git = "https://github.com/bevyengine/bevy", optional = true }
 bevy_utils = { git = "https://github.com/bevyengine/bevy", optional = true }
 
 [dependencies.iyes_loopless]
-git = "https://github.com/NiklasEi/iyes_loopless"
+git = "https://github.com/IyesGames/iyes_loopless"
 branch = "bevy_main"
 optional = true
 default-features = false
@@ -27,7 +27,7 @@ assets = ["bevy_asset", "bevy_utils"]
 
 [dev-dependencies]
 bevy = { git = "https://github.com/bevyengine/bevy" }
-iyes_loopless = { git = "https://github.com/NiklasEi/iyes_loopless", branch = "bevy_main" }
+iyes_loopless = { git = "https://github.com/IyesGames/iyes_loopless", branch = "bevy_main" }
 
 [[example]]
 name = "full"
