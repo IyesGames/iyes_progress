@@ -47,21 +47,21 @@ use std::ops::{Add, AddAssign};
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering as MemOrdering;
 
-use bevy_ecs::schedule::StateData;
-use bevy_ecs::prelude::*;
 use bevy_app::prelude::*;
+use bevy_ecs::prelude::*;
+use bevy_ecs::schedule::StateData;
 
 #[cfg(feature = "assets")]
 mod asset;
 
 /// Most used imports
 pub mod prelude {
-    pub use crate::ProgressPlugin;
-    pub use crate::Progress;
-    pub use crate::ProgressSystem;
-    pub use crate::ProgressCounter;
     #[cfg(feature = "assets")]
     pub use crate::asset::AssetsLoading;
+    pub use crate::Progress;
+    pub use crate::ProgressCounter;
+    pub use crate::ProgressPlugin;
+    pub use crate::ProgressSystem;
 }
 
 /// Progress reported by a system
@@ -146,10 +146,10 @@ impl AddAssign for Progress {
 ///
 /// ```rust
 /// # use bevy::prelude::*;
-/// # use bevy_loading::ProgressPlugin;
+/// # use iyes_progress::ProgressPlugin;
 /// # let mut app = App::default();
-/// app.add_plugin(LoadingPlugin::new(MyState::GameLoading).continue_to(MyState::InGame));
-/// app.add_plugin(LoadingPlugin::new(MyState::Splash).continue_to(MyState::MainMenu));
+/// app.add_plugin(ProgressPlugin::new(MyState::GameLoading).continue_to(MyState::InGame));
+/// app.add_plugin(ProgressPlugin::new(MyState::Splash).continue_to(MyState::MainMenu));
 /// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// # enum MyState {
 /// #     Splash,
@@ -195,10 +195,7 @@ impl<S: StateData> ProgressPlugin<S> {
 #[cfg(not(feature = "iyes_loopless"))]
 impl<S: StateData> Plugin for ProgressPlugin<S> {
     fn build(&self, app: &mut App) {
-        app.add_system_set(
-            SystemSet::on_enter(self.state.clone())
-                .with_system(loadstate_enter),
-        );
+        app.add_system_set(SystemSet::on_enter(self.state.clone()).with_system(loadstate_enter));
         app.add_system_set(
             SystemSet::on_update(self.state.clone())
                 .with_system(
@@ -212,12 +209,9 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
                         .exclusive_system()
                         .at_end()
                         .label(ProgressSystemLabel::CheckProgress),
-                )
+                ),
         );
-        app.add_system_set(
-            SystemSet::on_exit(self.state.clone())
-                .with_system(loadstate_exit)
-        );
+        app.add_system_set(SystemSet::on_exit(self.state.clone()).with_system(loadstate_exit));
 
         #[cfg(feature = "assets")]
         if self.track_assets {
@@ -227,8 +221,7 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
                     .with_system(asset::assets_progress.track_progress()),
             );
             app.add_system_set(
-                SystemSet::on_exit(self.state.clone())
-                    .with_system(asset::assets_loading_reset),
+                SystemSet::on_exit(self.state.clone()).with_system(asset::assets_loading_reset),
             );
         }
 
@@ -242,20 +235,27 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
 #[cfg(feature = "iyes_loopless")]
 impl<S: StateData> Plugin for ProgressPlugin<S> {
     fn build(&self, app: &mut App) {
-        use iyes_loopless::prelude::*;
         use iyes_loopless::condition::IntoConditionalExclusiveSystem;
+        use iyes_loopless::prelude::*;
 
         app.add_enter_system(self.state.clone(), loadstate_enter);
         app.add_exit_system(self.state.clone(), loadstate_exit);
 
-        #[derive(Debug, Clone, PartialEq, Eq, Hash, StageLabel)]
+        #[derive(Debug, Clone)]
         struct StageLabel(String);
+
+        impl bevy_ecs::schedule::StageLabel for StageLabel {
+            fn as_str(&self) -> &'static str {
+                Box::leak(self.0.clone().into_boxed_str())
+            }
+        }
+
         let stagelabel = StageLabel(format!("iyes_progress init: {:?}", &self.state));
 
         app.add_stage_after(
             iyes_loopless::state::app::StateTransitionStageLabel::from_type::<S>(),
             stagelabel.clone(),
-            SystemStage::single_threaded()
+            SystemStage::single_threaded(),
         );
 
         app.add_system_to_stage(
@@ -281,7 +281,7 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
             app.add_system(
                 asset::assets_progress
                     .track_progress()
-                    .run_in_state(self.state.clone())
+                    .run_in_state(self.state.clone()),
             );
         }
 
@@ -303,7 +303,8 @@ pub trait ProgressSystem<Params>: IntoSystem<(), Progress, Params> {
 
 #[cfg(not(feature = "iyes_loopless"))]
 impl<S, Params> ProgressSystem<Params> for S
-where S: IntoSystem<(), Progress, Params>
+where
+    S: IntoSystem<(), Progress, Params>,
 {
     fn track_progress(self) -> bevy_ecs::schedule::ParallelSystemDescriptor {
         self.chain(
@@ -326,7 +327,8 @@ pub trait ProgressSystem<Params>: IntoSystem<(), Progress, Params> {
 
 #[cfg(feature = "iyes_loopless")]
 impl<S, Params> ProgressSystem<Params> for S
-where S: IntoSystem<(), Progress, Params>
+where
+    S: IntoSystem<(), Progress, Params>,
 {
     fn track_progress(self) -> iyes_loopless::condition::ConditionalSystemDescriptor {
         use iyes_loopless::condition::IntoConditionalSystem;
