@@ -22,7 +22,8 @@ fn main() {
         .add_plugin(
             ProgressPlugin::new(AppState::Splash)
                 .continue_to(AppState::MainMenu)
-                .track_assets())
+                .track_assets(),
+        )
         // Add plugin for our game loading screen
         .add_plugin(ProgressPlugin::new(AppState::GameLoading).continue_to(AppState::InGame))
         // Load our UI assets during our splash screen
@@ -37,7 +38,7 @@ fn main() {
                 // we can also add regular untracked systems to our loading screen,
                 // like to draw our progress bar:
                 .with_system(ui_progress_bar)
-                .into()
+                .into(),
         )
         .run();
 }
