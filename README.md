@@ -11,7 +11,9 @@ Bevy Compatibility:
 | Bevy Version | Plugin Version       |
 |--------------|----------------------|
 | `main`       | `bevy_main`          |
-| `0.7`        | `0.3`, `main`        |
+| `0.8`        | `main`               |
+| `0.8`        | `0.4`                |
+| `0.7`        | `0.3`,               |
 | `0.6`        | `bevy_loading = 0.2` |
 | `0.5`        | `bevy_loading = 0.1` |
 
