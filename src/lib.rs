@@ -62,6 +62,7 @@ pub mod prelude {
     #[cfg(feature = "assets")]
     pub use crate::asset::AssetsLoading;
     pub use crate::Progress;
+    pub use crate::HiddenProgress;
     pub use crate::ProgressCounter;
     pub use crate::ProgressPlugin;
     #[cfg(feature = "iyes_loopless")]
@@ -79,6 +80,10 @@ pub mod prelude {
 ///
 /// For your convenience, you can easily convert `bool`s into this type.
 /// You can also convert `Progress` values into floats in the 0.0..1.0 range.
+///
+/// If you want your system to report some progress in a way that is counted separately
+/// and should not affect progress bars or other user-facing indicators, you can
+/// use [`HiddenProgress`] instead.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Progress {
     /// Units of work completed during this execution of the system
@@ -131,6 +136,18 @@ impl AddAssign for Progress {
         self.total += rhs.total;
     }
 }
+
+/// "Hidden" progress reported by a system.
+///
+/// Works just like the regular [`Progress`], but will be accounted differently
+/// in [`ProgressCounter`].
+///
+/// Hidden progress counts towards the true total (like for triggering the
+/// state transition) as reported by the `progress_complete` method, but is not
+/// counted by the `progress` method. The intention is that it should not
+/// affect things like progress bars and other user-facing indicators.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct HiddenProgress(pub Progress);
 
 /// Add this plugin to your app, to use this crate for the specified state.
 ///
@@ -229,7 +246,10 @@ pub struct ProgressCounter {
     // allowing them to run in parallel
     done: AtomicU32,
     total: AtomicU32,
+    done_hidden: AtomicU32,
+    total_hidden: AtomicU32,
     persisted: Progress,
+    persisted_hidden: Progress,
 }
 
 impl ProgressCounter {
@@ -238,10 +258,38 @@ impl ProgressCounter {
     /// This is the combined total of all systems.
     ///
     /// To get correct information, make sure that you call this function only after
-    /// all your systems that track progress finished
+    /// all your systems that track progress finished.
+    ///
+    /// This does not include "hidden" progress. To get the full "real" total, use
+    /// `progress_complete`.
+    ///
+    /// Use this method for progress bars and other things that indicate/report
+    /// progress information to the user.
     pub fn progress(&self) -> Progress {
         let total = self.total.load(MemOrdering::Acquire);
         let done = self.done.load(MemOrdering::Acquire);
+
+        Progress { done, total }
+    }
+
+    /// Get the latest overall progress information
+    ///
+    /// This is the combined total of all systems.
+    ///
+    /// To get correct information, make sure that you call this function only after
+    /// all your systems that track progress finished
+    ///
+    /// This includes "hidden" progress. To get only the "visible" progress, use
+    /// `progress`.
+    ///
+    /// This is the method to be used for things like state transitions, and other
+    /// use cases that must account for the "true" actual progress of the
+    /// registered systems.
+    pub fn progress_complete(&self) -> Progress {
+        let total = self.total.load(MemOrdering::Acquire)
+            + self.total_hidden.load(MemOrdering::Acquire);
+        let done = self.done.load(MemOrdering::Acquire)
+            + self.done_hidden.load(MemOrdering::Acquire);
 
         Progress { done, total }
     }
@@ -257,10 +305,32 @@ impl ProgressCounter {
             .fetch_add(progress.done.min(progress.total), MemOrdering::Release);
     }
 
+    /// Add some amount of "hidden" progress to the running total for the current frame.
+    ///
+    /// Hidden progress counts towards the true total (like for triggering the
+    /// state transition) as reported by the `progress_complete` method, but is not
+    /// counted by the `progress` method. The intention is that it should not
+    /// affect things like progress bars and other user-facing indicators.
+    ///
+    /// In most cases you do not want to call this function yourself.
+    /// Let your systems return a [`Progress`] and wrap them in [`track`] instead.
+    pub fn manually_track_hidden(&self, progress: HiddenProgress) {
+        self.total_hidden.fetch_add(progress.0.total, MemOrdering::Release);
+        // use `min` to clamp in case a bad user provides `done > total`
+        self.done_hidden
+            .fetch_add(progress.0.done.min(progress.0.total), MemOrdering::Release);
+    }
+
     /// Persist progress for the rest of the current state
     pub fn persist_progress(&mut self, progress: Progress) {
         self.manually_track(progress);
         self.persisted += progress;
+    }
+
+    /// Persist hidden progress for the rest of the current state
+    pub fn persist_progress_hidden(&mut self, progress: HiddenProgress) {
+        self.manually_track_hidden(progress);
+        self.persisted_hidden += progress.0;
     }
 }
 
@@ -281,4 +351,11 @@ fn next_frame(world: &mut World) {
     counter
         .total
         .store(counter.persisted.total, MemOrdering::Release);
+
+    counter
+        .done_hidden
+        .store(counter.persisted_hidden.done, MemOrdering::Release);
+    counter
+        .total_hidden
+        .store(counter.persisted_hidden.total, MemOrdering::Release);
 }
