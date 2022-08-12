@@ -71,6 +71,11 @@ pub mod prelude {
     pub use crate::legacy::prelude::*;
 }
 
+#[cfg(feature = "iyes_loopless")]
+pub use crate::loopless::ProgressSystem;
+#[cfg(not(feature = "iyes_loopless"))]
+pub use crate::legacy::ProgressSystem;
+
 /// Progress reported by a system
 ///
 /// It indicates how much work that system has still left to do.
@@ -331,6 +336,31 @@ impl ProgressCounter {
     pub fn persist_progress_hidden(&mut self, progress: HiddenProgress) {
         self.manually_track_hidden(progress);
         self.persisted_hidden += progress.0;
+    }
+}
+
+/// Trait for all types that can be returned by systems to report progress
+pub trait ApplyProgress {
+    /// Account the value into the total progress for this frame
+    fn apply_progress(self, total: &ProgressCounter);
+}
+
+impl ApplyProgress for Progress {
+    fn apply_progress(self, total: &ProgressCounter) {
+        total.manually_track(self);
+    }
+}
+
+impl ApplyProgress for HiddenProgress {
+    fn apply_progress(self, total: &ProgressCounter) {
+        total.manually_track_hidden(self);
+    }
+}
+
+impl<T: ApplyProgress> ApplyProgress for (T, T) {
+    fn apply_progress(self, total: &ProgressCounter) {
+        self.0.apply_progress(total);
+        self.1.apply_progress(total);
     }
 }
 

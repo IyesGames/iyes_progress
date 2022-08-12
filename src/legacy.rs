@@ -4,10 +4,10 @@ use bevy_ecs::schedule::StateData;
 
 use crate::{ProgressPlugin, ProgressSystemLabel};
 use crate::ProgressCounter;
-use crate::{Progress, HiddenProgress};
+use crate::ApplyProgress;
 
 pub mod prelude {
-    pub use super::{ProgressSystem, HiddenProgressSystem, MixedProgressSystem};
+    pub use super::ProgressSystem;
 }
 
 impl<S: StateData> Plugin for ProgressPlugin<S> {
@@ -49,67 +49,23 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
     }
 }
 
-/// Extension trait for systems with Progress tracking
-pub trait ProgressSystem<Params>: IntoSystem<(), Progress, Params> {
+/// Extension trait for systems with progress tracking
+pub trait ProgressSystem<Params, T: ApplyProgress>: IntoSystem<(), T, Params> {
     /// Call this to add your system returning [`Progress`] to your [`App`]
     ///
     /// This adds the functionality for tracking the returned Progress.
     fn track_progress(self) -> bevy_ecs::schedule::ParallelSystemDescriptor;
 }
 
-impl<S, Params> ProgressSystem<Params> for S
+impl<S, T, Params> ProgressSystem<Params, T> for S
 where
-    S: IntoSystem<(), Progress, Params>,
+    T: ApplyProgress + 'static,
+    S: IntoSystem<(), T, Params>,
 {
     fn track_progress(self) -> bevy_ecs::schedule::ParallelSystemDescriptor {
         self.chain(
-            |In(progress): In<Progress>, counter: Res<ProgressCounter>| {
-                counter.manually_track(progress);
-            },
-        )
-        .label(ProgressSystemLabel::Tracking)
-    }
-}
-
-/// Extension trait for systems with Progress tracking
-pub trait HiddenProgressSystem<Params>: IntoSystem<(), HiddenProgress, Params> {
-    /// Call this to add your system returning [`HiddenProgress`] to your [`App`]
-    ///
-    /// This adds the functionality for tracking the returned Progress.
-    fn track_progress(self) -> bevy_ecs::schedule::ParallelSystemDescriptor;
-}
-
-impl<S, Params> HiddenProgressSystem<Params> for S
-where
-    S: IntoSystem<(), HiddenProgress, Params>,
-{
-    fn track_progress(self) -> bevy_ecs::schedule::ParallelSystemDescriptor {
-        self.chain(
-            |In(progress): In<HiddenProgress>, counter: Res<ProgressCounter>| {
-                counter.manually_track_hidden(progress);
-            },
-        )
-        .label(ProgressSystemLabel::Tracking)
-    }
-}
-
-/// Extension trait for systems with Progress tracking
-pub trait MixedProgressSystem<Params>: IntoSystem<(), (Progress, HiddenProgress), Params> {
-    /// Call this to add your system returning both `Progress` and `HiddenProgress` to your [`App`]
-    ///
-    /// This adds the functionality for tracking the returned Progress.
-    fn track_progress(self) -> bevy_ecs::schedule::ParallelSystemDescriptor;
-}
-
-impl<S, Params> MixedProgressSystem<Params> for S
-where
-    S: IntoSystem<(), (Progress, HiddenProgress), Params>,
-{
-    fn track_progress(self) -> bevy_ecs::schedule::ParallelSystemDescriptor {
-        self.chain(
-            |In((progress, hidden)): In<(Progress, HiddenProgress)>, counter: Res<ProgressCounter>| {
-                counter.manually_track(progress);
-                counter.manually_track_hidden(hidden);
+            |In(progress): In<T>, counter: Res<ProgressCounter>| {
+                progress.apply_progress(&*counter);
             },
         )
         .label(ProgressSystemLabel::Tracking)
