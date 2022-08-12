@@ -47,12 +47,15 @@ use std::ops::{Add, AddAssign};
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering as MemOrdering;
 
-use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::StateData;
 
 #[cfg(feature = "assets")]
 mod asset;
+#[cfg(feature = "iyes_loopless")]
+mod loopless;
+#[cfg(not(feature = "iyes_loopless"))]
+mod legacy;
 
 /// Most used imports
 pub mod prelude {
@@ -61,7 +64,10 @@ pub mod prelude {
     pub use crate::Progress;
     pub use crate::ProgressCounter;
     pub use crate::ProgressPlugin;
-    pub use crate::ProgressSystem;
+    #[cfg(feature = "iyes_loopless")]
+    pub use crate::loopless::prelude::*;
+    #[cfg(not(feature = "iyes_loopless"))]
+    pub use crate::legacy::prelude::*;
 }
 
 /// Progress reported by a system
@@ -192,156 +198,6 @@ impl<S: StateData> ProgressPlugin<S> {
     }
 }
 
-#[cfg(not(feature = "iyes_loopless"))]
-impl<S: StateData> Plugin for ProgressPlugin<S> {
-    fn build(&self, app: &mut App) {
-        app.add_system_set(SystemSet::on_enter(self.state.clone()).with_system(loadstate_enter));
-        app.add_system_set(
-            SystemSet::on_update(self.state.clone())
-                .with_system(
-                    next_frame
-                        .exclusive_system()
-                        .at_start()
-                        .label(ProgressSystemLabel::Preparation),
-                )
-                .with_system(
-                    check_progress::<S>(self.next_state.clone())
-                        .exclusive_system()
-                        .at_end()
-                        .label(ProgressSystemLabel::CheckProgress),
-                ),
-        );
-        app.add_system_set(SystemSet::on_exit(self.state.clone()).with_system(loadstate_exit));
-
-        #[cfg(feature = "assets")]
-        if self.track_assets {
-            app.init_resource::<asset::AssetsLoading>();
-            app.add_system_set(
-                SystemSet::on_update(self.state.clone())
-                    .with_system(asset::assets_progress.track_progress()),
-            );
-            app.add_system_set(
-                SystemSet::on_exit(self.state.clone()).with_system(asset::assets_loading_reset),
-            );
-        }
-
-        #[cfg(not(feature = "assets"))]
-        if self.track_assets {
-            panic!("Enable the \"assets\" cargo feature to use assets tracking!");
-        }
-    }
-}
-
-#[cfg(feature = "iyes_loopless")]
-impl<S: StateData> Plugin for ProgressPlugin<S> {
-    fn build(&self, app: &mut App) {
-        use iyes_loopless::condition::IntoConditionalExclusiveSystem;
-        use iyes_loopless::prelude::*;
-
-        app.add_enter_system(self.state.clone(), loadstate_enter);
-        app.add_exit_system(self.state.clone(), loadstate_exit);
-
-        #[derive(Debug, Clone)]
-        struct StageLabel(String);
-
-        impl bevy_ecs::schedule::StageLabel for StageLabel {
-            fn as_str(&self) -> &'static str {
-                Box::leak(self.0.clone().into_boxed_str())
-            }
-        }
-
-        let stagelabel = StageLabel(format!("iyes_progress init: {:?}", &self.state));
-
-        app.add_stage_after(
-            iyes_loopless::state::StateTransitionStageLabel::from_type::<S>(),
-            stagelabel.clone(),
-            SystemStage::single_threaded(),
-        );
-
-        app.add_system_to_stage(
-            stagelabel,
-            next_frame
-                .run_in_state(self.state.clone())
-                .at_start()
-                .label(ProgressSystemLabel::Preparation),
-        );
-
-        app.add_system_to_stage(
-            CoreStage::Last,
-            check_progress::<S>(self.next_state.clone())
-                .run_in_state(self.state.clone())
-                .at_end()
-                .label(ProgressSystemLabel::CheckProgress),
-        );
-
-        #[cfg(feature = "assets")]
-        if self.track_assets {
-            app.init_resource::<asset::AssetsLoading>();
-            app.add_exit_system(self.state.clone(), asset::assets_loading_reset);
-            app.add_system(
-                asset::assets_progress
-                    .track_progress()
-                    .run_in_state(self.state.clone()),
-            );
-        }
-
-        #[cfg(not(feature = "assets"))]
-        if self.track_assets {
-            panic!("Enable the \"assets\" cargo feature to use assets tracking!");
-        }
-    }
-}
-
-#[cfg(not(feature = "iyes_loopless"))]
-/// Extension trait for systems with Progress tracking
-pub trait ProgressSystem<Params>: IntoSystem<(), Progress, Params> {
-    /// Call this to add your system returning [`Progress`] to your [`App`]
-    ///
-    /// This adds the functionality for tracking the returned Progress.
-    fn track_progress(self) -> bevy_ecs::schedule::ParallelSystemDescriptor;
-}
-
-#[cfg(not(feature = "iyes_loopless"))]
-impl<S, Params> ProgressSystem<Params> for S
-where
-    S: IntoSystem<(), Progress, Params>,
-{
-    fn track_progress(self) -> bevy_ecs::schedule::ParallelSystemDescriptor {
-        self.chain(
-            |In(progress): In<Progress>, counter: Res<ProgressCounter>| {
-                counter.manually_track(progress)
-            },
-        )
-        .label(ProgressSystemLabel::Tracking)
-    }
-}
-
-#[cfg(feature = "iyes_loopless")]
-/// Extension trait for systems with Progress tracking
-pub trait ProgressSystem<Params>: IntoSystem<(), Progress, Params> {
-    /// Call this to add your system returning [`Progress`] to your [`App`]
-    ///
-    /// This adds the functionality for tracking the returned Progress.
-    fn track_progress(self) -> iyes_loopless::condition::ConditionalSystemDescriptor;
-}
-
-#[cfg(feature = "iyes_loopless")]
-impl<S, Params> ProgressSystem<Params> for S
-where
-    S: IntoSystem<(), Progress, Params>,
-{
-    fn track_progress(self) -> iyes_loopless::condition::ConditionalSystemDescriptor {
-        use iyes_loopless::condition::IntoConditionalSystem;
-        self.chain(
-            |In(progress): In<Progress>, counter: Res<ProgressCounter>| {
-                counter.manually_track(progress)
-            },
-        )
-        .into_conditional()
-        .label(ProgressSystemLabel::Tracking)
-    }
-}
-
 /// Label to control system execution order
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemLabel)]
 pub enum ProgressSystemLabel {
@@ -414,30 +270,6 @@ fn loadstate_enter(mut commands: Commands) {
 
 fn loadstate_exit(mut commands: Commands) {
     commands.remove_resource::<ProgressCounter>();
-}
-
-#[cfg(not(feature = "iyes_loopless"))]
-fn check_progress<S: StateData>(next_state: Option<S>) -> impl FnMut(&mut World) {
-    move |world| {
-        let progress = world.resource::<ProgressCounter>().progress();
-        if progress.is_ready() {
-            if let Some(next_state) = &next_state {
-                let mut state = world.resource_mut::<State<S>>();
-                state.set(next_state.clone()).ok();
-            }
-        }
-    }
-}
-#[cfg(feature = "iyes_loopless")]
-fn check_progress<S: StateData>(next_state: Option<S>) -> impl FnMut(&mut World) {
-    move |world| {
-        let progress = world.resource::<ProgressCounter>().progress();
-        if progress.is_ready() {
-            if let Some(next_state) = &next_state {
-                world.insert_resource(iyes_loopless::state::NextState(next_state.clone()));
-            }
-        }
-    }
 }
 
 fn next_frame(world: &mut World) {
