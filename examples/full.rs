@@ -35,6 +35,7 @@ fn main() {
                 // systems that implement tasks to be tracked for completion:
                 .with_system(net_init_session.track_progress())
                 .with_system(world_generation.track_progress())
+                .with_system(internal_thing.track_progress())
                 // we can also add regular untracked systems to our loading screen,
                 // like to draw our progress bar:
                 .with_system(ui_progress_bar)
@@ -97,6 +98,18 @@ fn world_generation(
     }
 }
 
+fn internal_thing(
+    // ...
+) -> HiddenProgress {
+    // "hidden progress" allows us to report progress
+    // that is tracked separately, so it is counted for
+    // the state transition, but not for our user-facing
+    // progress bar
+
+    // Just wrap the usual `Progress` value in a `HiddenProgress`
+    HiddenProgress(internal_ready().into())
+}
+
 fn ui_progress_bar(
     counter: Res<ProgressCounter>,
     // ...
@@ -121,5 +134,9 @@ fn my_session_try_init() {
 }
 
 fn gen_chunk(_id: u32) {
+    unimplemented!()
+}
+
+fn internal_ready() -> bool {
     unimplemented!()
 }
