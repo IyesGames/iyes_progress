@@ -389,3 +389,31 @@ fn next_frame(world: &mut World) {
         .total_hidden
         .store(counter.persisted_hidden.total, MemOrdering::Release);
 }
+
+/// Dummy system to count for a number of frames
+///
+/// May be useful for testing/debug/workaround purposes.
+pub fn dummy_system_wait_frames<const N: u32>(
+    mut count: Local<u32>,
+) -> HiddenProgress {
+    if *count <= N {
+        *count += 1;
+    }
+    HiddenProgress(Progress {
+        done: *count - 1,
+        total: N,
+    })
+}
+
+/// Dummy system to wait for a time duration
+///
+/// May be useful for testing/debug/workaround purposes.
+pub fn dummy_system_wait_millis<const MILLIS: u64>(
+    mut state: Local<Option<std::time::Instant>>,
+) -> HiddenProgress {
+    let end = state.unwrap_or_else(
+        || std::time::Instant::now() + std::time::Duration::from_millis(MILLIS)
+    );
+    *state = Some(end);
+    HiddenProgress((std::time::Instant::now() > end).into())
+}
