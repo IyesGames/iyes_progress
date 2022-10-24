@@ -12,7 +12,6 @@ pub mod prelude {
 
 impl<S: StateData> Plugin for ProgressPlugin<S> {
     fn build(&self, app: &mut App) {
-        use iyes_loopless::condition::IntoConditionalExclusiveSystem;
         use iyes_loopless::prelude::*;
 
         app.add_enter_system(self.state.clone(), crate::loadstate_enter);
@@ -38,6 +37,7 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
         app.add_system_to_stage(
             stagelabel,
             crate::next_frame
+                .into_conditional_exclusive()
                 .run_in_state(self.state.clone())
                 .at_start()
                 .label(ProgressSystemLabel::Preparation),
@@ -46,6 +46,7 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
         app.add_system_to_stage(
             CoreStage::Last,
             check_progress::<S>(self.next_state.clone())
+                .into_conditional_exclusive()
                 .run_in_state(self.state.clone())
                 .at_end()
                 .label(ProgressSystemLabel::CheckProgress),
