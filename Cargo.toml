@@ -1,6 +1,6 @@
 [package]
 name = "iyes_progress"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
@@ -10,13 +10,13 @@ categories = ["game-engines"]
 description = "Bevy plugin to help implement loading states"
 
 [dependencies]
-bevy_ecs = "0.8"
-bevy_app = "0.8"
-bevy_asset = { version = "0.8", optional = true }
-bevy_utils = { version = "0.8", optional = true }
+bevy_ecs = "0.9"
+bevy_app = "0.9"
+bevy_asset = { version = "0.9", optional = true }
+bevy_utils = { version = "0.9", optional = true }
 
 [dependencies.iyes_loopless]
-version = "0.8"
+version = "0.9"
 optional = true
 default-features = false
 features = ["states", "app"]
@@ -25,8 +25,8 @@ features = ["states", "app"]
 assets = ["bevy_asset", "bevy_utils"]
 
 [dev-dependencies]
-bevy = "0.8"
-iyes_loopless = "0.8"
+bevy = "0.9"
+iyes_loopless = "0.9"
 
 [[example]]
 name = "full"

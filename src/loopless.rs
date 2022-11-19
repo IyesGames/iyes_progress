@@ -37,7 +37,6 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
         app.add_system_to_stage(
             stagelabel,
             crate::next_frame
-                .into_conditional_exclusive()
                 .run_in_state(self.state.clone())
                 .at_start()
                 .label(ProgressSystemLabel::Preparation),
@@ -46,7 +45,6 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
         app.add_system_to_stage(
             CoreStage::Last,
             check_progress::<S>(self.next_state.clone())
-                .into_conditional_exclusive()
                 .run_in_state(self.state.clone())
                 .at_end()
                 .label(ProgressSystemLabel::CheckProgress),
@@ -85,7 +83,7 @@ where
 {
     fn track_progress(self) -> iyes_loopless::condition::ConditionalSystemDescriptor {
         use iyes_loopless::condition::IntoConditionalSystem;
-        self.chain(
+        self.pipe(
             |In(progress): In<T>, counter: Res<ProgressCounter>| {
                 progress.apply_progress(&*counter);
             },

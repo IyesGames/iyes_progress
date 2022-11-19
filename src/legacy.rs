@@ -17,13 +17,11 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
             SystemSet::on_update(self.state.clone())
                 .with_system(
                     crate::next_frame
-                        .exclusive_system()
                         .at_start()
                         .label(ProgressSystemLabel::Preparation),
                 )
                 .with_system(
                     check_progress::<S>(self.next_state.clone())
-                        .exclusive_system()
                         .at_end()
                         .label(ProgressSystemLabel::CheckProgress),
                 ),
@@ -54,7 +52,7 @@ pub trait ProgressSystem<Params, T: ApplyProgress>: IntoSystem<(), T, Params> {
     /// Call this to add your system returning [`Progress`] to your [`App`]
     ///
     /// This adds the functionality for tracking the returned Progress.
-    fn track_progress(self) -> bevy_ecs::schedule::ParallelSystemDescriptor;
+    fn track_progress(self) -> bevy_ecs::schedule::SystemDescriptor;
 }
 
 impl<S, T, Params> ProgressSystem<Params, T> for S
@@ -62,8 +60,8 @@ where
     T: ApplyProgress + 'static,
     S: IntoSystem<(), T, Params>,
 {
-    fn track_progress(self) -> bevy_ecs::schedule::ParallelSystemDescriptor {
-        self.chain(
+    fn track_progress(self) -> bevy_ecs::schedule::SystemDescriptor {
+        self.pipe(
             |In(progress): In<T>, counter: Res<ProgressCounter>| {
                 progress.apply_progress(&*counter);
             },

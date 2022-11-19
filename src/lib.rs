@@ -244,7 +244,7 @@ pub enum ProgressSystemLabel {
 ///
 /// This resource is automatically created when entering a state that was
 /// configured using [`ProgressPlugin`], and removed when exiting it.
-#[derive(Default)]
+#[derive(Resource, Default)]
 pub struct ProgressCounter {
     // use atomics to track overall progress,
     // so that we can avoid mut access in tracked systems,

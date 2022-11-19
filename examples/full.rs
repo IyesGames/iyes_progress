@@ -44,6 +44,7 @@ fn main() {
         .run();
 }
 
+#[derive(Resource)]
 struct MyUiAssets {
     ui_font: Handle<Font>,
     btn_img: Handle<Image>,
