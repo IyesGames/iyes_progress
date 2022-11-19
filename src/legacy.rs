@@ -45,6 +45,10 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
             panic!("Enable the \"assets\" cargo feature to use assets tracking!");
         }
     }
+
+    fn is_unique(&self) -> bool {
+        false
+    }
 }
 
 /// Extension trait for systems with progress tracking
