@@ -193,12 +193,15 @@ pub struct ProgressPlugin<S: StateData> {
     pub next_state: Option<S>,
     /// Whether to enable the optional assets tracking feature
     pub track_assets: bool,
+    // Unique name, made using the loading state
+    pub(crate) plugin_name: String,
 }
 
 impl<S: StateData> ProgressPlugin<S> {
     /// Create a [`ProgressPlugin`] running during the given State
     pub fn new(state: S) -> Self {
         ProgressPlugin {
+            plugin_name: format!("{}({:?})", std::any::type_name::<Self>(), state),
             state,
             next_state: None,
             track_assets: false,

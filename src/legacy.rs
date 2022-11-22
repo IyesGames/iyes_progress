@@ -46,8 +46,8 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
         }
     }
 
-    fn is_unique(&self) -> bool {
-        false
+    fn name(&self) -> &str {
+        &self.plugin_name
     }
 }
 
