@@ -1,8 +1,6 @@
-use bevy_asset::prelude::*;
-use bevy_asset::HandleId;
-use bevy_asset::LoadState;
-use bevy_ecs::prelude::*;
-use bevy_utils::HashSet;
+use bevy::asset::{HandleId, LoadState};
+use bevy::prelude::*;
+use bevy::utils::HashSet;
 
 use crate::Progress;
 
