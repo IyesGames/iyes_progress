@@ -27,7 +27,7 @@ fn main() {
         // Add plugin for our game loading screen
         .add_plugin(ProgressPlugin::new(AppState::GameLoading).continue_to(AppState::InGame))
         // Load our UI assets during our splash screen
-        .add_system_to_schedule(OnEnter(AppState::Splash), load_ui_assets)
+        .add_system(load_ui_assets.in_schedule(OnEnter(AppState::Splash)))
         // Our game loading screen
         // systems that implement tasks to be tracked for completion:
         .add_systems(
@@ -104,8 +104,7 @@ fn world_generation(
     }
 }
 
-fn internal_thing(
-    // ...
+fn internal_thing(// ...
 ) -> HiddenProgress {
     // "hidden progress" allows us to report progress
     // that is tracked separately, so it is counted for

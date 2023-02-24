@@ -214,7 +214,7 @@ impl<S: States> ProgressPlugin<S> {
 
 impl<S: States> Plugin for ProgressPlugin<S> {
     fn build(&self, app: &mut App) {
-        app.add_system_to_schedule(OnEnter(self.state.clone()), loadstate_enter)
+        app.add_system(loadstate_enter.in_schedule(OnEnter(self.state.clone())))
             .add_system(
                 next_frame
                     .in_base_set(ProgressSystemSet::Preparation)
@@ -231,7 +231,7 @@ impl<S: States> Plugin for ProgressPlugin<S> {
                     .run_if(in_state(self.state.clone())),
             )
             .configure_set(ProgressSystemSet::CheckProgress.after(TrackedProgressSet))
-            .add_system_to_schedule(OnExit(self.state.clone()), loadstate_exit);
+            .add_system(loadstate_exit.in_schedule(OnExit(self.state.clone())));
 
         #[cfg(feature = "assets")]
         if self.track_assets {
@@ -241,7 +241,7 @@ impl<S: States> Plugin for ProgressPlugin<S> {
                     .track_progress()
                     .run_if(in_state(self.state.clone())),
             );
-            app.add_system_to_schedule(OnExit(self.state.clone()), asset::assets_loading_reset);
+            app.add_system(asset::assets_loading_reset.in_schedule(OnExit(self.state.clone())));
         }
 
         #[cfg(not(feature = "assets"))]
@@ -264,15 +264,15 @@ pub trait ProgressSystem<Params, T: ApplyProgress>: IntoSystem<(), T, Params> {
 }
 
 impl<S, T, Params> ProgressSystem<Params, T> for S
-    where
-        T: ApplyProgress + 'static,
-        S: IntoSystem<(), T, Params>,
+where
+    T: ApplyProgress + 'static,
+    S: IntoSystem<(), T, Params>,
 {
     fn track_progress(self) -> SystemConfig {
         self.pipe(|In(progress): In<T>, counter: Res<ProgressCounter>| {
             progress.apply_progress(&*counter);
         })
-            .in_set(TrackedProgressSet)
+        .in_set(TrackedProgressSet)
     }
 }
 
@@ -361,10 +361,10 @@ impl ProgressCounter {
     /// use cases that must account for the "true" actual progress of the
     /// registered systems.
     pub fn progress_complete(&self) -> Progress {
-        let total = self.total.load(MemOrdering::Acquire)
-            + self.total_hidden.load(MemOrdering::Acquire);
-        let done = self.done.load(MemOrdering::Acquire)
-            + self.done_hidden.load(MemOrdering::Acquire);
+        let total =
+            self.total.load(MemOrdering::Acquire) + self.total_hidden.load(MemOrdering::Acquire);
+        let done =
+            self.done.load(MemOrdering::Acquire) + self.done_hidden.load(MemOrdering::Acquire);
 
         Progress { done, total }
     }
@@ -390,7 +390,8 @@ impl ProgressCounter {
     /// In most cases you do not want to call this function yourself.
     /// Let your systems return a [`Progress`] and wrap them in [`track`] instead.
     pub fn manually_track_hidden(&self, progress: HiddenProgress) {
-        self.total_hidden.fetch_add(progress.0.total, MemOrdering::Release);
+        self.total_hidden
+            .fetch_add(progress.0.total, MemOrdering::Release);
         // use `min` to clamp in case a bad user provides `done > total`
         self.done_hidden
             .fetch_add(progress.0.done.min(progress.0.total), MemOrdering::Release);
@@ -463,9 +464,7 @@ fn next_frame(world: &mut World) {
 /// Dummy system to count for a number of frames
 ///
 /// May be useful for testing/debug/workaround purposes.
-pub fn dummy_system_wait_frames<const N: u32>(
-    mut count: Local<u32>,
-) -> HiddenProgress {
+pub fn dummy_system_wait_frames<const N: u32>(mut count: Local<u32>) -> HiddenProgress {
     if *count <= N {
         *count += 1;
     }
@@ -481,9 +480,8 @@ pub fn dummy_system_wait_frames<const N: u32>(
 pub fn dummy_system_wait_millis<const MILLIS: u64>(
     mut state: Local<Option<std::time::Instant>>,
 ) -> HiddenProgress {
-    let end = state.unwrap_or_else(
-        || std::time::Instant::now() + std::time::Duration::from_millis(MILLIS)
-    );
+    let end = state
+        .unwrap_or_else(|| std::time::Instant::now() + std::time::Duration::from_millis(MILLIS));
     *state = Some(end);
     HiddenProgress((std::time::Instant::now() > end).into())
 }
