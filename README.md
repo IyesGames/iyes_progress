@@ -27,8 +27,8 @@ load assets, prepare the game world, etc… and then transition to the
 in-game state when everything is done.
 
 However, this crate is general, and could also be used for any number of
-other things, even things like cooldowns and animations (especially when
-used with [`iyes_loopless`] to easily have many state types).
+other things, even things like cooldowns and animations, however you may not
+currently track progress for more than one state at the same time (see #20).
 
 Works with either legacy Bevy states (default) or [`iyes_loopless`] (via
 optional cargo feature).
