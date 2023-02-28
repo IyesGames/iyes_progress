@@ -41,14 +41,15 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-use bevy::ecs::schedule::SystemConfig;
+use bevy_ecs::schedule::SystemConfig;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::{Add, AddAssign};
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering as MemOrdering;
 
-use bevy::prelude::*;
+use bevy_app::prelude::*;
+use bevy_ecs::prelude::*;
 #[cfg(feature = "assets")]
 mod asset;
 
