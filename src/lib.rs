@@ -277,12 +277,10 @@ where
     }
 }
 
-fn check_progress<S: States>(next_state: Option<S>) -> impl FnMut(&mut World) {
-    move |world| {
-        let progress = world.resource::<ProgressCounter>().progress_complete();
-        if progress.is_ready() {
+fn check_progress<S: States>(next_state: Option<S>) -> impl FnMut(Res<ProgressCounter>, ResMut<NextState<S>>) {
+    move |progress, mut state| {
+        if progress.progress_complete().is_ready() {
             if let Some(next_state) = &next_state {
-                let mut state = world.resource_mut::<NextState<S>>();
                 state.set(next_state.clone());
             }
         }
@@ -444,9 +442,7 @@ fn loadstate_exit(mut commands: Commands) {
     commands.remove_resource::<ProgressCounter>();
 }
 
-fn next_frame(world: &mut World) {
-    let counter = world.resource::<ProgressCounter>();
-
+fn next_frame(counter: Res<ProgressCounter>) {
     counter
         .done
         .store(counter.persisted.done, MemOrdering::Release);
