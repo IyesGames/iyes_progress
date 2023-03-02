@@ -8,11 +8,7 @@
 //! in-game state when everything is done.
 //!
 //! However, this crate is general, and could also be used for any number of
-//! other things, even things like cooldowns and animations (especially when
-//! used with `iyes_loopless` to easily have many state types).
-//!
-//! Works with either legacy Bevy states (default) or `iyes_loopless` (via
-//! optional cargo feature).
+//! other things, even things like cooldowns and animations.
 //!
 //! To use this plugin, add one or more instances `ProgressPlugin` to your
 //! `App`, configuring for the relevant states.
@@ -150,15 +146,11 @@ pub struct HiddenProgress(pub Progress);
 /// If you want the optional assets tracking ("assets" cargo feature), enable
 /// it with `.track_assets()`.
 ///
-/// **Warning**: Progress tracking will only work in some stages!
+/// **Warning**: Progress tracking will only work after [`CoreSet::StateTransitions`]!
 ///
-/// If not using `iyes_loopless`, it is only allowed in `CoreStage::Update`.
-///
-/// If using `iyes_loopless`, it is allowed in all stages after the
-/// `StateTransitionStage` responsible for your state type, up to and including
-/// `CoreStage::Last`.
-///
-/// You must ensure to not add any progress-tracked systems to any other stages!
+/// To ensure correct ordering, all systems that track progress should be part of
+/// [`TrackedProgressSet`]. If you use [`track_progress`] to wrap your systems they will
+/// be added to the set automatically.
 ///
 /// ```rust
 /// # use bevy::prelude::*;
