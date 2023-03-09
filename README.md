@@ -11,7 +11,8 @@ Bevy Compatibility:
 | Bevy Version | Plugin Version       |
 |--------------|----------------------|
 | `main`       | `bevy_main`          |
-| `0.9`        | `main`               |
+| `0.10`       | `main`               |
+| `0.10`       | `0.8`                |
 | `0.9`        | `0.7`                |
 | `0.8`        | `0.4`,`0.5`, `0.6`   |
 | `0.7`        | `0.3`                |
@@ -19,6 +20,7 @@ Bevy Compatibility:
 | `0.5`        | `bevy_loading = 0.1` |
 
 ---
+
 This crate helps you in cases where you need to track when a bunch of
 work has been completed, and perform a state transition.
 
@@ -27,11 +29,7 @@ load assets, prepare the game world, etc… and then transition to the
 in-game state when everything is done.
 
 However, this crate is general, and could also be used for any number of
-other things, even things like cooldowns and animations (especially when
-used with [`iyes_loopless`] to easily have many state types).
-
-Works with either legacy Bevy states (default) or [`iyes_loopless`] (via
-optional cargo feature).
+other things, even things like cooldowns and animations.
 
 To use this plugin, add one or more instances `ProgressPlugin` to your
 `App`, configuring for the relevant states.
@@ -60,5 +58,3 @@ crate, which now has support for integrating with this crate. :)
 ## Example
 
 See the [example](./examples/full.rs) for an overview of how to use this crate.
-
-[`iyes_loopless`]: https://github.com/IyesGames/iyes_loopless
