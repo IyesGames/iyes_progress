@@ -8,11 +8,7 @@
 //! in-game state when everything is done.
 //!
 //! However, this crate is general, and could also be used for any number of
-//! other things, even things like cooldowns and animations (especially when
-//! used with `iyes_loopless` to easily have many state types).
-//!
-//! Works with either legacy Bevy states (default) or `iyes_loopless` (via
-//! optional cargo feature).
+//! other things, even things like cooldowns and animations.
 //!
 //! To use this plugin, add one or more instances `ProgressPlugin` to your
 //! `App`, configuring for the relevant states.
@@ -41,6 +37,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+use bevy_ecs::schedule::SystemConfig;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::{Add, AddAssign};
@@ -49,8 +46,6 @@ use std::sync::atomic::Ordering as MemOrdering;
 
 use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
-use bevy_ecs::schedule::StateData;
-
 #[cfg(feature = "assets")]
 mod asset;
 
@@ -58,6 +53,7 @@ mod asset;
 pub mod prelude {
     #[cfg(feature = "assets")]
     pub use crate::asset::AssetsLoading;
+    pub use crate::HiddenProgress;
     pub use crate::Progress;
     pub use crate::ProgressCounter;
     pub use crate::ProgressPlugin;
@@ -73,6 +69,10 @@ pub mod prelude {
 ///
 /// For your convenience, you can easily convert `bool`s into this type.
 /// You can also convert `Progress` values into floats in the 0.0..1.0 range.
+///
+/// If you want your system to report some progress in a way that is counted separately
+/// and should not affect progress bars or other user-facing indicators, you can
+/// use [`HiddenProgress`] instead.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Progress {
     /// Units of work completed during this execution of the system
@@ -126,6 +126,18 @@ impl AddAssign for Progress {
     }
 }
 
+/// "Hidden" progress reported by a system.
+///
+/// Works just like the regular [`Progress`], but will be accounted differently
+/// in [`ProgressCounter`].
+///
+/// Hidden progress counts towards the true total (like for triggering the
+/// state transition) as reported by the `progress_complete` method, but is not
+/// counted by the `progress` method. The intention is that it should not
+/// affect things like progress bars and other user-facing indicators.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct HiddenProgress(pub Progress);
+
 /// Add this plugin to your app, to use this crate for the specified state.
 ///
 /// If you have multiple different states that need progress tracking,
@@ -134,43 +146,44 @@ impl AddAssign for Progress {
 /// If you want the optional assets tracking ("assets" cargo feature), enable
 /// it with `.track_assets()`.
 ///
-/// **Warning**: Progress tracking will only work in some stages!
+/// **Warning**: Progress tracking will only work after [`CoreSet::StateTransitions`]!
 ///
-/// If not using `iyes_loopless`, it is only allowed in `CoreStage::Update`.
-///
-/// If using `iyes_loopless`, it is allowed in all stages after the
-/// `StateTransitionStage` responsible for your state type, up to and including
-/// `CoreStage::Last`.
-///
-/// You must ensure to not add any progress-tracked systems to any other stages!
+/// To ensure correct ordering, all systems that track progress should be part of
+/// [`TrackedProgressSet`]. If you use [`track_progress`] to wrap your systems they will
+/// be added to the set automatically.
 ///
 /// ```rust
 /// # use bevy::prelude::*;
 /// # use iyes_progress::ProgressPlugin;
 /// # let mut app = App::default();
+/// # app.add_state::<MyState>();
 /// app.add_plugin(ProgressPlugin::new(MyState::GameLoading).continue_to(MyState::InGame));
 /// app.add_plugin(ProgressPlugin::new(MyState::Splash).continue_to(MyState::MainMenu));
-/// # #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// # #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, States)]
 /// # enum MyState {
+/// #     #[default]
 /// #     Splash,
 /// #     MainMenu,
 /// #     GameLoading,
 /// #     InGame,
 /// # }
 /// ```
-pub struct ProgressPlugin<S: StateData> {
+pub struct ProgressPlugin<S: States> {
     /// The loading state during which progress will be tracked
     pub state: S,
     /// The next state to transition to, when all progress completes
     pub next_state: Option<S>,
     /// Whether to enable the optional assets tracking feature
     pub track_assets: bool,
+    // Unique name, made using the loading state
+    pub(crate) plugin_name: String,
 }
 
-impl<S: StateData> ProgressPlugin<S> {
+impl<S: States> ProgressPlugin<S> {
     /// Create a [`ProgressPlugin`] running during the given State
     pub fn new(state: S) -> Self {
         ProgressPlugin {
+            plugin_name: format!("{}({:?})", std::any::type_name::<Self>(), state),
             state,
             next_state: None,
             track_assets: false,
@@ -192,97 +205,36 @@ impl<S: StateData> ProgressPlugin<S> {
     }
 }
 
-#[cfg(not(feature = "iyes_loopless"))]
-impl<S: StateData> Plugin for ProgressPlugin<S> {
+impl<S: States> Plugin for ProgressPlugin<S> {
     fn build(&self, app: &mut App) {
-        app.add_system_set(SystemSet::on_enter(self.state.clone()).with_system(loadstate_enter));
-        app.add_system_set(
-            SystemSet::on_update(self.state.clone())
-                .with_system(
-                    next_frame
-                        .exclusive_system()
-                        .at_start()
-                        .label(ProgressSystemLabel::Preparation),
-                )
-                .with_system(
-                    check_progress::<S>(self.next_state.clone())
-                        .exclusive_system()
-                        .at_end()
-                        .label(ProgressSystemLabel::CheckProgress),
-                ),
-        );
-        app.add_system_set(SystemSet::on_exit(self.state.clone()).with_system(loadstate_exit));
+        app.add_system(loadstate_enter.in_schedule(OnEnter(self.state.clone())))
+            .add_system(
+                next_frame
+                    .in_base_set(ProgressSystemSet::Preparation)
+                    .run_if(in_state(self.state.clone())),
+            )
+            .configure_set(
+                ProgressSystemSet::Preparation
+                    .after(CoreSet::StateTransitions)
+                    .before(TrackedProgressSet),
+            )
+            .add_system(
+                check_progress::<S>(self.next_state.clone())
+                    .in_base_set(ProgressSystemSet::CheckProgress)
+                    .run_if(in_state(self.state.clone())),
+            )
+            .configure_set(ProgressSystemSet::CheckProgress.after(TrackedProgressSet))
+            .add_system(loadstate_exit.in_schedule(OnExit(self.state.clone())));
 
         #[cfg(feature = "assets")]
         if self.track_assets {
             app.init_resource::<asset::AssetsLoading>();
-            app.add_system_set(
-                SystemSet::on_update(self.state.clone())
-                    .with_system(asset::assets_progress.track_progress()),
-            );
-            app.add_system_set(
-                SystemSet::on_exit(self.state.clone()).with_system(asset::assets_loading_reset),
-            );
-        }
-
-        #[cfg(not(feature = "assets"))]
-        if self.track_assets {
-            panic!("Enable the \"assets\" cargo feature to use assets tracking!");
-        }
-    }
-}
-
-#[cfg(feature = "iyes_loopless")]
-impl<S: StateData> Plugin for ProgressPlugin<S> {
-    fn build(&self, app: &mut App) {
-        use iyes_loopless::condition::IntoConditionalExclusiveSystem;
-        use iyes_loopless::prelude::*;
-
-        app.add_enter_system(self.state.clone(), loadstate_enter);
-        app.add_exit_system(self.state.clone(), loadstate_exit);
-
-        #[derive(Debug, Clone)]
-        struct StageLabel(String);
-
-        impl bevy_ecs::schedule::StageLabel for StageLabel {
-            fn as_str(&self) -> &'static str {
-                Box::leak(self.0.clone().into_boxed_str())
-            }
-        }
-
-        let stagelabel = StageLabel(format!("iyes_progress init: {:?}", &self.state));
-
-        app.add_stage_after(
-            iyes_loopless::state::StateTransitionStageLabel::from_type::<S>(),
-            stagelabel.clone(),
-            SystemStage::single_threaded(),
-        );
-
-        app.add_system_to_stage(
-            stagelabel,
-            next_frame
-                .run_in_state(self.state.clone())
-                .at_start()
-                .label(ProgressSystemLabel::Preparation),
-        );
-
-        app.add_system_to_stage(
-            CoreStage::Last,
-            check_progress::<S>(self.next_state.clone())
-                .run_in_state(self.state.clone())
-                .at_end()
-                .label(ProgressSystemLabel::CheckProgress),
-        );
-
-        #[cfg(feature = "assets")]
-        if self.track_assets {
-            app.init_resource::<asset::AssetsLoading>();
-            app.add_exit_system(self.state.clone(), asset::assets_loading_reset);
             app.add_system(
                 asset::assets_progress
                     .track_progress()
-                    .run_in_state(self.state.clone()),
+                    .run_if(in_state(self.state.clone())),
             );
+            app.add_system(asset::assets_loading_reset.in_schedule(OnExit(self.state.clone())));
         }
 
         #[cfg(not(feature = "assets"))]
@@ -290,90 +242,80 @@ impl<S: StateData> Plugin for ProgressPlugin<S> {
             panic!("Enable the \"assets\" cargo feature to use assets tracking!");
         }
     }
-}
 
-#[cfg(not(feature = "iyes_loopless"))]
-/// Extension trait for systems with Progress tracking
-pub trait ProgressSystem<Params>: IntoSystem<(), Progress, Params> {
-    /// Call this to add your system returning [`Progress`] to your [`App`]
-    ///
-    /// This adds the functionality for tracking the returned Progress.
-    fn track_progress(self) -> bevy_ecs::schedule::ParallelSystemDescriptor;
-}
-
-#[cfg(not(feature = "iyes_loopless"))]
-impl<S, Params> ProgressSystem<Params> for S
-where
-    S: IntoSystem<(), Progress, Params>,
-{
-    fn track_progress(self) -> bevy_ecs::schedule::ParallelSystemDescriptor {
-        self.chain(
-            |In(progress): In<Progress>, counter: Res<ProgressCounter>| {
-                counter.manually_track(progress)
-            },
-        )
-        .label(ProgressSystemLabel::Tracking)
+    fn name(&self) -> &str {
+        &self.plugin_name
     }
 }
 
-#[cfg(feature = "iyes_loopless")]
-/// Extension trait for systems with Progress tracking
-pub trait ProgressSystem<Params>: IntoSystem<(), Progress, Params> {
+/// Extension trait for systems with progress tracking
+pub trait ProgressSystem<Params, T: ApplyProgress>: IntoSystem<(), T, Params> {
     /// Call this to add your system returning [`Progress`] to your [`App`]
     ///
     /// This adds the functionality for tracking the returned Progress.
-    fn track_progress(self) -> iyes_loopless::condition::ConditionalSystemDescriptor;
+    fn track_progress(self) -> SystemConfig;
 }
 
-#[cfg(feature = "iyes_loopless")]
-impl<S, Params> ProgressSystem<Params> for S
+impl<S, T, Params> ProgressSystem<Params, T> for S
 where
-    S: IntoSystem<(), Progress, Params>,
+    T: ApplyProgress + 'static,
+    S: IntoSystem<(), T, Params>,
 {
-    fn track_progress(self) -> iyes_loopless::condition::ConditionalSystemDescriptor {
-        use iyes_loopless::condition::IntoConditionalSystem;
-        self.chain(
-            |In(progress): In<Progress>, counter: Res<ProgressCounter>| {
-                counter.manually_track(progress)
-            },
-        )
-        .into_conditional()
-        .label(ProgressSystemLabel::Tracking)
+    fn track_progress(self) -> SystemConfig {
+        self.pipe(|In(progress): In<T>, counter: Res<ProgressCounter>| {
+            progress.apply_progress(&*counter);
+        })
+        .in_set(TrackedProgressSet)
     }
 }
 
-/// Label to control system execution order
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemLabel)]
-pub enum ProgressSystemLabel {
-    /// All systems tracking progress should run after this label
-    ///
-    /// The label is only needed for `at_start` exclusive systems.
-    /// Any parallel system or exclusive system at a different position
-    /// will run after it automatically.
+fn check_progress<S: States>(next_state: Option<S>) -> impl FnMut(Res<ProgressCounter>, ResMut<NextState<S>>) {
+    move |progress, mut state| {
+        if progress.progress_complete().is_ready() {
+            if let Some(next_state) = &next_state {
+                state.set(next_state.clone());
+            }
+        }
+    }
+}
+
+/// Base sets for running systems before and after progress tracking
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
+#[system_set(base)]
+pub enum ProgressSystemSet {
+    /// This base set is configured to run before [`TrackedProgressSet`]
+    /// and after [`CoreSet::StateTransitions`]
     Preparation,
-    /// Any system reading progress should ran after this label.
-    /// All systems wrapped in [`track`] automatically get this label.
-    Tracking,
-    /// All systems tracking progress should run before this label
+    /// All systems reading progress should be part of this base set
     ///
-    /// The label is only needed for `at_end` exclusive systems.
-    /// Any parallel system or exclusive system at a different position
-    /// will run before it automatically.
+    /// This set is configured to run after [`TrackedProgressSet`]
     CheckProgress,
 }
+
+/// Any system tracking progress should be part of this set.
+/// All systems wrapped in [`track`] automatically are part of this set.
+///
+/// This set is configured to run before [`ProgressSystemSet::CheckProgress`]
+/// and after [`ProgressSystemSet::Preparation`]. This requires the set to run
+/// after [`CoreSet::StateTransitions`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
+pub struct TrackedProgressSet;
 
 /// Resource for tracking overall progress
 ///
 /// This resource is automatically created when entering a state that was
 /// configured using [`ProgressPlugin`], and removed when exiting it.
-#[derive(Default)]
+#[derive(Resource, Default)]
 pub struct ProgressCounter {
     // use atomics to track overall progress,
     // so that we can avoid mut access in tracked systems,
     // allowing them to run in parallel
     done: AtomicU32,
     total: AtomicU32,
+    done_hidden: AtomicU32,
+    total_hidden: AtomicU32,
     persisted: Progress,
+    persisted_hidden: Progress,
 }
 
 impl ProgressCounter {
@@ -382,10 +324,38 @@ impl ProgressCounter {
     /// This is the combined total of all systems.
     ///
     /// To get correct information, make sure that you call this function only after
-    /// all your systems that track progress finished
+    /// all your systems that track progress finished.
+    ///
+    /// This does not include "hidden" progress. To get the full "real" total, use
+    /// `progress_complete`.
+    ///
+    /// Use this method for progress bars and other things that indicate/report
+    /// progress information to the user.
     pub fn progress(&self) -> Progress {
         let total = self.total.load(MemOrdering::Acquire);
         let done = self.done.load(MemOrdering::Acquire);
+
+        Progress { done, total }
+    }
+
+    /// Get the latest overall progress information
+    ///
+    /// This is the combined total of all systems.
+    ///
+    /// To get correct information, make sure that you call this function only after
+    /// all your systems that track progress finished
+    ///
+    /// This includes "hidden" progress. To get only the "visible" progress, use
+    /// `progress`.
+    ///
+    /// This is the method to be used for things like state transitions, and other
+    /// use cases that must account for the "true" actual progress of the
+    /// registered systems.
+    pub fn progress_complete(&self) -> Progress {
+        let total =
+            self.total.load(MemOrdering::Acquire) + self.total_hidden.load(MemOrdering::Acquire);
+        let done =
+            self.done.load(MemOrdering::Acquire) + self.done_hidden.load(MemOrdering::Acquire);
 
         Progress { done, total }
     }
@@ -401,10 +371,58 @@ impl ProgressCounter {
             .fetch_add(progress.done.min(progress.total), MemOrdering::Release);
     }
 
+    /// Add some amount of "hidden" progress to the running total for the current frame.
+    ///
+    /// Hidden progress counts towards the true total (like for triggering the
+    /// state transition) as reported by the `progress_complete` method, but is not
+    /// counted by the `progress` method. The intention is that it should not
+    /// affect things like progress bars and other user-facing indicators.
+    ///
+    /// In most cases you do not want to call this function yourself.
+    /// Let your systems return a [`Progress`] and wrap them in [`track`] instead.
+    pub fn manually_track_hidden(&self, progress: HiddenProgress) {
+        self.total_hidden
+            .fetch_add(progress.0.total, MemOrdering::Release);
+        // use `min` to clamp in case a bad user provides `done > total`
+        self.done_hidden
+            .fetch_add(progress.0.done.min(progress.0.total), MemOrdering::Release);
+    }
+
     /// Persist progress for the rest of the current state
     pub fn persist_progress(&mut self, progress: Progress) {
         self.manually_track(progress);
         self.persisted += progress;
+    }
+
+    /// Persist hidden progress for the rest of the current state
+    pub fn persist_progress_hidden(&mut self, progress: HiddenProgress) {
+        self.manually_track_hidden(progress);
+        self.persisted_hidden += progress.0;
+    }
+}
+
+/// Trait for all types that can be returned by systems to report progress
+pub trait ApplyProgress {
+    /// Account the value into the total progress for this frame
+    fn apply_progress(self, total: &ProgressCounter);
+}
+
+impl ApplyProgress for Progress {
+    fn apply_progress(self, total: &ProgressCounter) {
+        total.manually_track(self);
+    }
+}
+
+impl ApplyProgress for HiddenProgress {
+    fn apply_progress(self, total: &ProgressCounter) {
+        total.manually_track_hidden(self);
+    }
+}
+
+impl<T: ApplyProgress> ApplyProgress for (T, T) {
+    fn apply_progress(self, total: &ProgressCounter) {
+        self.0.apply_progress(total);
+        self.1.apply_progress(total);
     }
 }
 
@@ -416,37 +434,43 @@ fn loadstate_exit(mut commands: Commands) {
     commands.remove_resource::<ProgressCounter>();
 }
 
-#[cfg(not(feature = "iyes_loopless"))]
-fn check_progress<S: StateData>(next_state: Option<S>) -> impl FnMut(&mut World) {
-    move |world| {
-        let progress = world.resource::<ProgressCounter>().progress();
-        if progress.is_ready() {
-            if let Some(next_state) = &next_state {
-                let mut state = world.resource_mut::<State<S>>();
-                state.set(next_state.clone()).ok();
-            }
-        }
-    }
-}
-#[cfg(feature = "iyes_loopless")]
-fn check_progress<S: StateData>(next_state: Option<S>) -> impl FnMut(&mut World) {
-    move |world| {
-        let progress = world.resource::<ProgressCounter>().progress();
-        if progress.is_ready() {
-            if let Some(next_state) = &next_state {
-                world.insert_resource(iyes_loopless::state::NextState(next_state.clone()));
-            }
-        }
-    }
-}
-
-fn next_frame(world: &mut World) {
-    let counter = world.resource::<ProgressCounter>();
-
+fn next_frame(counter: Res<ProgressCounter>) {
     counter
         .done
         .store(counter.persisted.done, MemOrdering::Release);
     counter
         .total
         .store(counter.persisted.total, MemOrdering::Release);
+
+    counter
+        .done_hidden
+        .store(counter.persisted_hidden.done, MemOrdering::Release);
+    counter
+        .total_hidden
+        .store(counter.persisted_hidden.total, MemOrdering::Release);
+}
+
+/// Dummy system to count for a number of frames
+///
+/// May be useful for testing/debug/workaround purposes.
+pub fn dummy_system_wait_frames<const N: u32>(mut count: Local<u32>) -> HiddenProgress {
+    if *count <= N {
+        *count += 1;
+    }
+    HiddenProgress(Progress {
+        done: *count - 1,
+        total: N,
+    })
+}
+
+/// Dummy system to wait for a time duration
+///
+/// May be useful for testing/debug/workaround purposes.
+pub fn dummy_system_wait_millis<const MILLIS: u64>(
+    mut state: Local<Option<std::time::Instant>>,
+) -> HiddenProgress {
+    let end = state
+        .unwrap_or_else(|| std::time::Instant::now() + std::time::Duration::from_millis(MILLIS));
+    *state = Some(end);
+    HiddenProgress((std::time::Instant::now() > end).into())
 }

@@ -19,7 +19,7 @@ use crate::Progress;
 /// It is initialized with the app, so that it is available for you to add
 /// your asset handles before the load state becomes active.
 /// On exiting the load state, its value is simply cleared/reset.
-#[derive(Default)]
+#[derive(Resource, Default)]
 pub struct AssetsLoading {
     handles: HashSet<HandleId>,
     total: u32,
