@@ -141,7 +141,8 @@ pub struct HiddenProgress(pub Progress);
 /// Add this plugin to your app, to use this crate for the specified state.
 ///
 /// If you have multiple different states that need progress tracking,
-/// you can add the plugin for each one.
+/// you can add the plugin for each one. Tracking multiple state types
+/// simultaneously is *not* currently supported (see issue #20).
 ///
 /// If you want the optional assets tracking ("assets" cargo feature), enable
 /// it with `.track_assets()`.
