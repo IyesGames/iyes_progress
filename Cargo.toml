@@ -10,16 +10,16 @@ categories = ["game-engines"]
 description = "Bevy plugin to help implement loading states"
 
 [dependencies]
-bevy_ecs = { version = "0.10" }
-bevy_app = { version = "0.10" }
-bevy_asset = { version = "0.10", optional = true }
-bevy_utils = { version = "0.10", optional = true }
+bevy_ecs = { git = "https://github.com/bevyengine/bevy" }
+bevy_app = { git = "https://github.com/bevyengine/bevy" }
+bevy_asset = { git = "https://github.com/bevyengine/bevy", optional = true }
+bevy_utils = { git = "https://github.com/bevyengine/bevy", optional = true }
 
 [features]
 assets = ["bevy_asset", "bevy_utils"]
 
 [dev-dependencies]
-bevy = { version = "0.10" }
+bevy = { git = "https://github.com/bevyengine/bevy" }
 
 [[example]]
 name = "full"
