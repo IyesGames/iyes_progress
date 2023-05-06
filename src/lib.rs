@@ -37,7 +37,6 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-use bevy_ecs::schedule::SystemConfig;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::{Add, AddAssign};
@@ -45,7 +44,7 @@ use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering as MemOrdering;
 
 use bevy_app::prelude::*;
-use bevy_ecs::prelude::*;
+use bevy_ecs::{prelude::*, schedule::SystemConfigs};
 #[cfg(feature = "assets")]
 mod asset;
 
@@ -58,6 +57,7 @@ pub mod prelude {
     pub use crate::ProgressCounter;
     pub use crate::ProgressPlugin;
     pub use crate::ProgressSystem;
+    pub use crate::ProgressSystemSet;
 }
 
 /// Progress reported by a system
@@ -141,7 +141,8 @@ pub struct HiddenProgress(pub Progress);
 /// Add this plugin to your app, to use this crate for the specified state.
 ///
 /// If you have multiple different states that need progress tracking,
-/// you can add the plugin for each one.
+/// you can add the plugin for each one. Tracking multiple state types
+/// simultaneously is *not* currently supported (see issue #20).
 ///
 /// If you want the optional assets tracking ("assets" cargo feature), enable
 /// it with `.track_assets()`.
@@ -207,34 +208,31 @@ impl<S: States> ProgressPlugin<S> {
 
 impl<S: States> Plugin for ProgressPlugin<S> {
     fn build(&self, app: &mut App) {
-        app.add_system(loadstate_enter.in_schedule(OnEnter(self.state.clone())))
-            .add_system(
-                next_frame
-                    .in_base_set(ProgressSystemSet::Preparation)
+        app.add_systems(OnEnter(self.state.clone()), loadstate_enter)
+            .add_systems(
+                Update,
+                (
+                    next_frame
+                        .before(TrackedProgressSet)
+                        .in_set(ProgressSystemSet::Preparation),
+                    check_progress::<S>(self.next_state.clone())
+                        .after(TrackedProgressSet)
+                        .in_set(ProgressSystemSet::CheckProgress),
+                )
                     .run_if(in_state(self.state.clone())),
             )
-            .configure_set(
-                ProgressSystemSet::Preparation
-                    .after(CoreSet::StateTransitions)
-                    .before(TrackedProgressSet),
-            )
-            .add_system(
-                check_progress::<S>(self.next_state.clone())
-                    .in_base_set(ProgressSystemSet::CheckProgress)
-                    .run_if(in_state(self.state.clone())),
-            )
-            .configure_set(ProgressSystemSet::CheckProgress.after(TrackedProgressSet))
-            .add_system(loadstate_exit.in_schedule(OnExit(self.state.clone())));
+            .add_systems(OnExit(self.state.clone()), loadstate_exit);
 
         #[cfg(feature = "assets")]
         if self.track_assets {
             app.init_resource::<asset::AssetsLoading>();
-            app.add_system(
+            app.add_systems(
+                Update,
                 asset::assets_progress
                     .track_progress()
                     .run_if(in_state(self.state.clone())),
             );
-            app.add_system(asset::assets_loading_reset.in_schedule(OnExit(self.state.clone())));
+            app.add_systems(OnExit(self.state.clone()), asset::assets_loading_reset);
         }
 
         #[cfg(not(feature = "assets"))]
@@ -253,7 +251,7 @@ pub trait ProgressSystem<Params, T: ApplyProgress>: IntoSystem<(), T, Params> {
     /// Call this to add your system returning [`Progress`] to your [`App`]
     ///
     /// This adds the functionality for tracking the returned Progress.
-    fn track_progress(self) -> SystemConfig;
+    fn track_progress(self) -> SystemConfigs;
 }
 
 impl<S, T, Params> ProgressSystem<Params, T> for S
@@ -261,9 +259,9 @@ where
     T: ApplyProgress + 'static,
     S: IntoSystem<(), T, Params>,
 {
-    fn track_progress(self) -> SystemConfig {
+    fn track_progress(self) -> SystemConfigs {
         self.pipe(|In(progress): In<T>, counter: Res<ProgressCounter>| {
-            progress.apply_progress(&*counter);
+            progress.apply_progress(&counter);
         })
         .in_set(TrackedProgressSet)
     }
@@ -279,14 +277,12 @@ fn check_progress<S: States>(next_state: Option<S>) -> impl FnMut(Res<ProgressCo
     }
 }
 
-/// Base sets for running systems before and after progress tracking
+/// Sets of the systems before and after progress tracking
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
-#[system_set(base)]
 pub enum ProgressSystemSet {
-    /// This base set is configured to run before [`TrackedProgressSet`]
-    /// and after [`CoreSet::StateTransitions`]
+    /// This set is configured to run before [`TrackedProgressSet`]
     Preparation,
-    /// All systems reading progress should be part of this base set
+    /// All systems reading progress should be part of this set
     ///
     /// This set is configured to run after [`TrackedProgressSet`]
     CheckProgress,
@@ -353,9 +349,11 @@ impl ProgressCounter {
     /// registered systems.
     pub fn progress_complete(&self) -> Progress {
         let total =
-            self.total.load(MemOrdering::Acquire) + self.total_hidden.load(MemOrdering::Acquire);
+            self.total.load(MemOrdering::Acquire) +
+            self.total_hidden.load(MemOrdering::Acquire);
         let done =
-            self.done.load(MemOrdering::Acquire) + self.done_hidden.load(MemOrdering::Acquire);
+            self.done.load(MemOrdering::Acquire) +
+            self.done_hidden.load(MemOrdering::Acquire);
 
         Progress { done, total }
     }
@@ -469,8 +467,9 @@ pub fn dummy_system_wait_frames<const N: u32>(mut count: Local<u32>) -> HiddenPr
 pub fn dummy_system_wait_millis<const MILLIS: u64>(
     mut state: Local<Option<std::time::Instant>>,
 ) -> HiddenProgress {
-    let end = state
-        .unwrap_or_else(|| std::time::Instant::now() + std::time::Duration::from_millis(MILLIS));
+    let end = state.unwrap_or_else(
+        || std::time::Instant::now() + std::time::Duration::from_millis(MILLIS)
+    );
     *state = Some(end);
     HiddenProgress((std::time::Instant::now() > end).into())
 }

@@ -27,27 +27,23 @@ fn main() {
         // Add plugin for our game loading screen
         .add_plugin(ProgressPlugin::new(AppState::GameLoading).continue_to(AppState::InGame))
         // Load our UI assets during our splash screen
-        .add_system(load_ui_assets.in_schedule(OnEnter(AppState::Splash)))
+        .add_systems(OnEnter(AppState::Splash), load_ui_assets)
         // Our game loading screen
         // systems that implement tasks to be tracked for completion:
         .add_systems(
+            Update,
             (
                 net_init_session.track_progress(),
                 world_generation.track_progress(),
                 internal_thing.track_progress(),
                 // we can also add regular untracked systems to our loading screen,
                 // like to draw our progress bar:
-                ui_progress_bar,
+                ui_progress_bar.after(ProgressSystemSet::CheckProgress),
             )
-                .in_set(LoadingSystems),
+                .run_if(in_state(AppState::GameLoading)),
         )
-        .configure_set(LoadingSystems.run_if(in_state(AppState::GameLoading)))
         .run();
 }
-
-// Todo: remove after https://github.com/bevyengine/bevy/pull/7676
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
-struct LoadingSystems;
 
 #[derive(Resource)]
 struct MyUiAssets {
@@ -104,7 +100,8 @@ fn world_generation(
     }
 }
 
-fn internal_thing(// ...
+fn internal_thing(
+    // ...
 ) -> HiddenProgress {
     // "hidden progress" allows us to report progress
     // that is tracked separately, so it is counted for

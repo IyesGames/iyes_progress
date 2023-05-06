@@ -20,6 +20,7 @@ Bevy Compatibility:
 | `0.5`        | `bevy_loading = 0.1` |
 
 ---
+
 This crate helps you in cases where you need to track when a bunch of
 work has been completed, and perform a state transition.
 
