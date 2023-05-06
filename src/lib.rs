@@ -44,13 +44,12 @@ use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering as MemOrdering;
 
 use bevy_app::{prelude::*, MainScheduleOrder};
-use bevy_ecs::prelude::*;
+use bevy_ecs::{prelude::*, schedule::SystemConfigs};
 use bevy_ecs::schedule::{ExecutorKind, SystemConfigs, ScheduleLabel};
 use bevy_utils::{Duration, Instant};
 
 #[cfg(feature = "debug")]
 use bevy_log::prelude::*;
-
 #[cfg(feature = "assets")]
 mod asset;
 
@@ -63,6 +62,7 @@ pub mod prelude {
     pub use crate::ProgressCounter;
     pub use crate::ProgressPlugin;
     pub use crate::ProgressSystem;
+    pub use crate::ProgressSystemSet;
 }
 
 /// Progress reported by a system
@@ -303,7 +303,7 @@ where
 {
     fn track_progress(self) -> SystemConfigs {
         self.pipe(|In(progress): In<T>, counter: Res<ProgressCounter>| {
-            progress.apply_progress(&*counter);
+            progress.apply_progress(&counter);
         })
         .in_set(TrackedProgressSet)
     }
