@@ -37,15 +37,16 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-use bevy_ecs::schedule::SystemConfig;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::ops::{Add, AddAssign};
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering as MemOrdering;
 
-use bevy_app::prelude::*;
+use bevy_app::{prelude::*, MainScheduleOrder};
 use bevy_ecs::prelude::*;
+use bevy_ecs::schedule::{ExecutorKind, SystemConfigs, ScheduleLabel};
+use bevy_utils::{Duration, Instant};
 #[cfg(feature = "assets")]
 mod asset;
 
@@ -147,11 +148,13 @@ pub struct HiddenProgress(pub Progress);
 /// If you want the optional assets tracking ("assets" cargo feature), enable
 /// it with `.track_assets()`.
 ///
-/// **Warning**: Progress tracking will only work after [`CoreSet::StateTransitions`]!
+/// **Warning**: Progress tracking will only work after the [`StateTransition`]!
 ///
-/// To ensure correct ordering, all systems that track progress should be part of
-/// [`TrackedProgressSet`]. If you use [`track_progress`] to wrap your systems they will
-/// be added to the set automatically.
+/// [`TrackedProgressSet`] represents all systems with progress tracking enabled.
+/// Calling [`track_progress`] will add your systems to the set automatically.
+///
+/// [`StateTransition`]: bevy_app::StateTransition
+/// [`track_progress`]: crate::ProgressSystem::track_progress
 ///
 /// ```rust
 /// # use bevy::prelude::*;
@@ -174,10 +177,10 @@ pub struct ProgressPlugin<S: States> {
     pub state: S,
     /// The next state to transition to, when all progress completes
     pub next_state: Option<S>,
+    /// Unique name, made using the loading state
+    pub(crate) plugin_name: String,
     /// Whether to enable the optional assets tracking feature
     pub track_assets: bool,
-    // Unique name, made using the loading state
-    pub(crate) plugin_name: String,
 }
 
 impl<S: States> ProgressPlugin<S> {
@@ -208,34 +211,65 @@ impl<S: States> ProgressPlugin<S> {
 
 impl<S: States> Plugin for ProgressPlugin<S> {
     fn build(&self, app: &mut App) {
-        app.add_system(loadstate_enter.in_schedule(OnEnter(self.state.clone())))
-            .add_system(
-                next_frame
-                    .in_base_set(ProgressSystemSet::Preparation)
-                    .run_if(in_state(self.state.clone())),
-            )
-            .configure_set(
-                ProgressSystemSet::Preparation
-                    .after(CoreSet::StateTransitions)
-                    .before(TrackedProgressSet),
-            )
-            .add_system(
-                check_progress::<S>(self.next_state.clone())
-                    .in_base_set(ProgressSystemSet::CheckProgress)
-                    .run_if(in_state(self.state.clone())),
-            )
-            .configure_set(ProgressSystemSet::CheckProgress.after(TrackedProgressSet))
-            .add_system(loadstate_exit.in_schedule(OnExit(self.state.clone())));
+        // set up a schedule after `StateTransition`, where we init our stuff
+        if app.get_schedule(ProgressPreparationSchedule).is_none() {
+            app.init_schedule(ProgressPreparationSchedule);
+            app.edit_schedule(ProgressPreparationSchedule, |sched| {
+                sched.set_executor_kind(ExecutorKind::SingleThreaded);
+            });
+            app.init_resource::<MainScheduleOrder>();
+            app.world.resource_mut::<MainScheduleOrder>()
+                .insert_after(StateTransition, ProgressPreparationSchedule);
+        }
+
+        // clear/init progress count every frame
+        app.add_systems(
+            ProgressPreparationSchedule,
+            next_frame
+                .run_if(in_state(self.state.clone()))
+                // just in case some progress-tracked systems exist in `ProgressPreparationSchedule`
+                .before(TrackedProgressSet)
+        );
+
+        // setup and cleanup on state transition
+        app.add_systems(OnEnter(self.state.clone()), loadstate_enter);
+        app.add_systems(OnExit(self.state.clone()), loadstate_exit);
+
+        // check progress and queue any state transition as late as possible, in `Last`
+        if let Some(next_state) = &self.next_state {
+            app.add_systems(
+                Last,
+                check_progress::<S>(next_state.clone())
+                    .run_if(in_state(self.state.clone()))
+                    // just in case some progress-tracked systems exist in `Last`
+                    .after(TrackedProgressSet)
+            );
+        }
+
+        #[cfg(feature = "debug")]
+        // ensure we only add this stuff once, even if the plugin is added multiple times
+        // (it is state-agnostic)
+        if !app.world.contains_resource::<ProgressDebug>() {
+            app.init_resource::<ProgressDebug>();
+            app.add_systems(
+                Last,
+                debug_progress
+                    .after(TrackedProgressSet)
+                    .run_if(resource_exists::<ProgressCounter>())
+                    .run_if(progress_debug_enabled)
+            );
+        }
 
         #[cfg(feature = "assets")]
         if self.track_assets {
             app.init_resource::<asset::AssetsLoading>();
-            app.add_system(
+            app.add_systems(
+                Update,
                 asset::assets_progress
                     .track_progress()
                     .run_if(in_state(self.state.clone())),
             );
-            app.add_system(asset::assets_loading_reset.in_schedule(OnExit(self.state.clone())));
+            app.add_systems(OnExit(self.state.clone()), asset::assets_loading_reset);
         }
 
         #[cfg(not(feature = "assets"))]
@@ -254,7 +288,7 @@ pub trait ProgressSystem<Params, T: ApplyProgress>: IntoSystem<(), T, Params> {
     /// Call this to add your system returning [`Progress`] to your [`App`]
     ///
     /// This adds the functionality for tracking the returned Progress.
-    fn track_progress(self) -> SystemConfig;
+    fn track_progress(self) -> SystemConfigs;
 }
 
 impl<S, T, Params> ProgressSystem<Params, T> for S
@@ -262,7 +296,7 @@ where
     T: ApplyProgress + 'static,
     S: IntoSystem<(), T, Params>,
 {
-    fn track_progress(self) -> SystemConfig {
+    fn track_progress(self) -> SystemConfigs {
         self.pipe(|In(progress): In<T>, counter: Res<ProgressCounter>| {
             progress.apply_progress(&*counter);
         })
@@ -270,35 +304,26 @@ where
     }
 }
 
-fn check_progress<S: States>(next_state: Option<S>) -> impl FnMut(Res<ProgressCounter>, ResMut<NextState<S>>) {
+fn check_progress<S: States>(next_state: S) -> impl FnMut(Res<ProgressCounter>, ResMut<NextState<S>>) {
     move |progress, mut state| {
         if progress.progress_complete().is_ready() {
-            if let Some(next_state) = &next_state {
-                state.set(next_state.clone());
-            }
+            state.set(next_state.clone());
         }
     }
 }
 
-/// Base sets for running systems before and after progress tracking
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
-#[system_set(base)]
-pub enum ProgressSystemSet {
-    /// This base set is configured to run before [`TrackedProgressSet`]
-    /// and after [`CoreSet::StateTransitions`]
-    Preparation,
-    /// All systems reading progress should be part of this base set
-    ///
-    /// This set is configured to run after [`TrackedProgressSet`]
-    CheckProgress,
-}
+/// Schedule where progress tracking is initialized every frame.
+///
+/// This will run after `StateTransition`, in the `Main` Bevy schedule.
+///
+/// Progress-tracked systems must not be added to schedules that run before this!
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ScheduleLabel)]
+pub struct ProgressPreparationSchedule;
 
 /// Any system tracking progress should be part of this set.
-/// All systems wrapped in [`track`] automatically are part of this set.
+/// All systems wrapped in [`track_progress`] are automatically part of this set.
 ///
-/// This set is configured to run before [`ProgressSystemSet::CheckProgress`]
-/// and after [`ProgressSystemSet::Preparation`]. This requires the set to run
-/// after [`CoreSet::StateTransitions`].
+/// [`track_progress`]: crate::ProgressSystem::track_progress
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
 pub struct TrackedProgressSet;
 
@@ -366,7 +391,9 @@ impl ProgressCounter {
     /// Add some amount of progress to the running total for the current frame.
     ///
     /// In most cases you do not want to call this function yourself.
-    /// Let your systems return a [`Progress`] and wrap them in [`track`] instead.
+    /// Let your systems return a [`Progress`] and wrap them in [`track_progress`] instead.
+    ///
+    /// [`track_progress`]: crate::ProgressSystem::track_progress
     pub fn manually_track(&self, progress: Progress) {
         self.total.fetch_add(progress.total, MemOrdering::Release);
         // use `min` to clamp in case a bad user provides `done > total`
@@ -382,7 +409,9 @@ impl ProgressCounter {
     /// affect things like progress bars and other user-facing indicators.
     ///
     /// In most cases you do not want to call this function yourself.
-    /// Let your systems return a [`Progress`] and wrap them in [`track`] instead.
+    /// Let your systems return a [`Progress`] and wrap them in [`track_progress`] instead.
+    ///
+    /// [`track_progress`]: crate::ProgressSystem::track_progress
     pub fn manually_track_hidden(&self, progress: HiddenProgress) {
         self.total_hidden
             .fetch_add(progress.0.total, MemOrdering::Release);
@@ -470,11 +499,48 @@ pub fn dummy_system_wait_frames<const N: u32>(mut count: Local<u32>) -> HiddenPr
 ///
 /// May be useful for testing/debug/workaround purposes.
 pub fn dummy_system_wait_millis<const MILLIS: u64>(
-    mut state: Local<Option<std::time::Instant>>,
+    mut state: Local<Option<Instant>>,
 ) -> HiddenProgress {
     let end = state.unwrap_or_else(
-        || std::time::Instant::now() + std::time::Duration::from_millis(MILLIS)
+        || Instant::now() + Duration::from_millis(MILLIS)
     );
     *state = Some(end);
-    HiddenProgress((std::time::Instant::now() > end).into())
+    HiddenProgress((Instant::now() > end).into())
+}
+
+#[cfg(feature = "debug")]
+/// Use this resource to control the logging of debug info
+///
+/// Enabled by default. Only available if the `debug` cargo feature is enabled.
+#[derive(Resource)]
+pub struct ProgressDebug {
+    enabled: bool,
+}
+
+#[cfg(feature = "debug")]
+impl Default for ProgressDebug {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+        }
+    }
+}
+
+#[cfg(feature = "debug")]
+fn debug_progress(counter: Res<ProgressCounter>) {
+    use bevy_log::prelude::*;
+    let progress = counter.progress();
+    let progress_full = counter.progress_complete();
+    trace!(
+        "Progress: {}/{}; Full Progress: {}/{}",
+        progress.done,
+        progress.total,
+        progress_full.done,
+        progress_full.total,
+    );
+}
+
+#[cfg(feature = "debug")]
+fn progress_debug_enabled(cfg: Option<Res<ProgressDebug>>) -> bool {
+    cfg.map(|cfg| cfg.enabled).unwrap_or(false)
 }

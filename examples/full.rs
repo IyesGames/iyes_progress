@@ -19,18 +19,19 @@ fn main() {
         // Add our state type
         .add_state::<AppState>()
         // Add plugin for the splash screen
-        .add_plugin(
+        .add_plugins(
             ProgressPlugin::new(AppState::Splash)
                 .continue_to(AppState::MainMenu)
                 .track_assets(),
         )
         // Add plugin for our game loading screen
-        .add_plugin(ProgressPlugin::new(AppState::GameLoading).continue_to(AppState::InGame))
+        .add_plugins(ProgressPlugin::new(AppState::GameLoading).continue_to(AppState::InGame))
         // Load our UI assets during our splash screen
-        .add_system(load_ui_assets.in_schedule(OnEnter(AppState::Splash)))
+        .add_systems(OnEnter(AppState::Splash), load_ui_assets)
         // Our game loading screen
         // systems that implement tasks to be tracked for completion:
         .add_systems(
+            Update,
             (
                 net_init_session.track_progress(),
                 world_generation.track_progress(),
@@ -39,15 +40,10 @@ fn main() {
                 // like to draw our progress bar:
                 ui_progress_bar,
             )
-                .in_set(LoadingSystems),
+                .run_if(in_state(AppState::GameLoading)),
         )
-        .configure_set(LoadingSystems.run_if(in_state(AppState::GameLoading)))
         .run();
 }
-
-// Todo: remove after https://github.com/bevyengine/bevy/pull/7676
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
-struct LoadingSystems;
 
 #[derive(Resource)]
 struct MyUiAssets {
