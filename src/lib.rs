@@ -47,6 +47,10 @@ use bevy_app::{prelude::*, MainScheduleOrder};
 use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{ExecutorKind, SystemConfigs, ScheduleLabel};
 use bevy_utils::{Duration, Instant};
+
+#[cfg(feature = "debug")]
+use bevy_log::prelude::*;
+
 #[cfg(feature = "assets")]
 mod asset;
 
@@ -308,6 +312,8 @@ fn check_progress<S: States>(next_state: S) -> impl FnMut(Res<ProgressCounter>, 
     move |progress, mut state| {
         if progress.progress_complete().is_ready() {
             state.set(next_state.clone());
+            #[cfg(feature = "debug")]
+            debug!("Progress complete! Queueing state transition!");
         }
     }
 }
@@ -460,10 +466,14 @@ impl<T: ApplyProgress> ApplyProgress for (T, T) {
 
 fn loadstate_enter(mut commands: Commands) {
     commands.insert_resource(ProgressCounter::default());
+    #[cfg(feature = "debug")]
+    debug!("Progress counting enabled on state enter.");
 }
 
 fn loadstate_exit(mut commands: Commands) {
     commands.remove_resource::<ProgressCounter>();
+    #[cfg(feature = "debug")]
+    debug!("Progress counting disabled on state exit.");
 }
 
 fn next_frame(counter: Res<ProgressCounter>) {
@@ -528,7 +538,6 @@ impl Default for ProgressDebug {
 
 #[cfg(feature = "debug")]
 fn debug_progress(counter: Res<ProgressCounter>) {
-    use bevy_log::prelude::*;
     let progress = counter.progress();
     let progress_full = counter.progress_complete();
     trace!(
