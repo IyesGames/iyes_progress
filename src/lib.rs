@@ -57,7 +57,7 @@ mod asset;
 /// Most used imports
 pub mod prelude {
     #[cfg(feature = "assets")]
-    pub use crate::asset::AssetsLoading;
+    pub use crate::asset::{AssetsLoading, AssetsTrackProgress};
     pub use crate::HiddenProgress;
     pub use crate::Progress;
     pub use crate::ProgressCounter;
@@ -271,6 +271,7 @@ impl<S: States> Plugin for ProgressPlugin<S> {
                 Update,
                 asset::assets_progress
                     .track_progress()
+                    .in_set(asset::AssetsTrackProgress)
                     .run_if(in_state(self.state.clone())),
             );
             app.add_systems(OnExit(self.state.clone()), asset::assets_loading_reset);
