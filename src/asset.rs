@@ -6,6 +6,14 @@ use bevy_utils::HashSet;
 
 use crate::Progress;
 
+/// System Set for assets progress tracking.
+///
+/// You can use this set for system ordering, if any of your systems need to
+/// run before/after [`AssetsLoading`] is checked every frame. For example, if
+/// you need to add more handles to track, your system should run before this.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AssetsTrackProgress;
+
 /// Resource for tracking the loading of assets
 ///
 /// You must `.add(&handle)` all of your assets here, if you want to wait
@@ -21,20 +29,22 @@ use crate::Progress;
 /// On exiting the load state, its value is simply cleared/reset.
 #[derive(Resource, Default)]
 pub struct AssetsLoading {
-    handles: HashSet<HandleId>,
-    total: u32,
+    pending: HashSet<HandleId>,
+    done: HashSet<HandleId>,
 }
 
 impl AssetsLoading {
     /// Add an asset to be tracked
     pub fn add<T: Into<HandleId>>(&mut self, handle: T) {
-        self.handles.insert(handle.into());
-        self.total += 1;
+        let handleid = handle.into();
+        if !self.done.contains(&handleid) {
+            self.pending.insert(handleid);
+        }
     }
 
     /// Have all assets finished loading?
     pub fn is_ready(&self) -> bool {
-        self.handles.is_empty()
+        self.pending.is_empty()
     }
 }
 
@@ -44,19 +54,20 @@ pub(crate) fn assets_progress(
 ) -> Progress {
     // TODO: avoid this temporary vec (HashSet::drain_filter is in Rust nightly)
     let mut done = vec![];
-    for handle in loading.handles.iter() {
+    for handle in loading.pending.iter() {
         let loadstate = server.get_load_state(*handle);
         if loadstate == LoadState::Loaded || loadstate == LoadState::Failed {
             done.push(*handle);
         }
     }
     for handle in done {
-        loading.handles.remove(&handle);
+        loading.pending.remove(&handle);
+        loading.done.insert(handle);
     }
 
     Progress {
-        done: loading.total - loading.handles.len() as u32,
-        total: loading.total,
+        done: loading.done.len() as u32,
+        total: loading.done.len() as u32 + loading.pending.len() as u32,
     }
 }
 
