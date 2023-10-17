@@ -1,5 +1,5 @@
 use bevy_asset::prelude::*;
-use bevy_asset::HandleId;
+use bevy_asset::UntypedAssetId;
 use bevy_asset::LoadState;
 use bevy_ecs::prelude::*;
 use bevy_utils::HashSet;
@@ -29,16 +29,16 @@ pub struct AssetsTrackProgress;
 /// On exiting the load state, its value is simply cleared/reset.
 #[derive(Resource, Default)]
 pub struct AssetsLoading {
-    pending: HashSet<HandleId>,
-    done: HashSet<HandleId>,
+    pending: HashSet<UntypedAssetId>,
+    done: HashSet<UntypedAssetId>,
 }
 
 impl AssetsLoading {
     /// Add an asset to be tracked
-    pub fn add<T: Into<HandleId>>(&mut self, handle: T) {
-        let handleid = handle.into();
-        if !self.done.contains(&handleid) {
-            self.pending.insert(handleid);
+    pub fn add<T: Into<UntypedAssetId>>(&mut self, handle: T) {
+        let asset_id = handle.into();
+        if !self.done.contains(&asset_id) {
+            self.pending.insert(asset_id);
         }
     }
 
@@ -55,9 +55,10 @@ pub(crate) fn assets_progress(
     // TODO: avoid this temporary vec (HashSet::drain_filter is in Rust nightly)
     let mut done = vec![];
     for handle in loading.pending.iter() {
-        let loadstate = server.get_load_state(*handle);
-        if loadstate == LoadState::Loaded || loadstate == LoadState::Failed {
-            done.push(*handle);
+        if let Some(load_state) = server.get_load_state(*handle) {
+            if load_state == LoadState::Loaded || load_state == LoadState::Failed {
+                done.push(*handle);
+            }
         }
     }
     for handle in done {

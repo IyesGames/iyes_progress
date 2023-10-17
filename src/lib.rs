@@ -44,7 +44,7 @@ use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering as MemOrdering;
 
 use bevy_app::{prelude::*, MainScheduleOrder};
-use bevy_ecs::{prelude::*, schedule::SystemConfigs};
+use bevy_ecs::prelude::*;
 use bevy_ecs::schedule::{ExecutorKind, SystemConfigs, ScheduleLabel};
 use bevy_utils::{Duration, Instant};
 
@@ -62,7 +62,7 @@ pub mod prelude {
     pub use crate::ProgressCounter;
     pub use crate::ProgressPlugin;
     pub use crate::ProgressSystem;
-    pub use crate::ProgressSystemSet;
+    pub use crate::TrackedProgressSet;
 }
 
 /// Progress reported by a system
@@ -165,8 +165,7 @@ pub struct HiddenProgress(pub Progress);
 /// # use iyes_progress::ProgressPlugin;
 /// # let mut app = App::default();
 /// # app.add_state::<MyState>();
-/// app.add_plugin(ProgressPlugin::new(MyState::GameLoading).continue_to(MyState::InGame));
-/// app.add_plugin(ProgressPlugin::new(MyState::Splash).continue_to(MyState::MainMenu));
+/// app.add_plugins((ProgressPlugin::new(MyState::GameLoading).continue_to(MyState::InGame), ProgressPlugin::new(MyState::Splash).continue_to(MyState::MainMenu)));
 /// # #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, States)]
 /// # enum MyState {
 /// #     #[default]
