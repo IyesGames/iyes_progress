@@ -10,11 +10,11 @@ categories = ["game-engines"]
 description = "Bevy plugin to help implement loading states"
 
 [dependencies]
-bevy_ecs = { git = "https://github.com/NiklasEi/bevy", branch = "bevy_asset_loader_0_12" }
-bevy_app = { git = "https://github.com/NiklasEi/bevy", branch = "bevy_asset_loader_0_12" }
-bevy_asset = { git = "https://github.com/NiklasEi/bevy", branch = "bevy_asset_loader_0_12", optional = true }
-bevy_log = { git = "https://github.com/NiklasEi/bevy", branch = "bevy_asset_loader_0_12", optional = true }
-bevy_utils = { git = "https://github.com/NiklasEi/bevy", branch = "bevy_asset_loader_0_12" }
+bevy_ecs = { git = "https://github.com/bevyengine/bevy" }
+bevy_app = { git = "https://github.com/bevyengine/bevy" }
+bevy_asset = { git = "https://github.com/bevyengine/bevy", optional = true }
+bevy_log = { git = "https://github.com/bevyengine/bevy", optional = true }
+bevy_utils = { git = "https://github.com/bevyengine/bevy" }
 
 [features]
 # Support for simple tracking of asset loading
@@ -23,7 +23,7 @@ assets = ["bevy_asset"]
 debug = ["bevy_log"]
 
 [dev-dependencies]
-bevy = { git = "https://github.com/NiklasEi/bevy", branch = "bevy_asset_loader_0_12" }
+bevy = { git = "https://github.com/bevyengine/bevy" }
 
 [[example]]
 name = "full"
