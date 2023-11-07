@@ -1,6 +1,7 @@
 use bevy_asset::prelude::*;
 use bevy_asset::UntypedAssetId;
 use bevy_asset::LoadState;
+use bevy_asset::RecursiveDependencyLoadState;
 use bevy_ecs::prelude::*;
 use bevy_utils::HashSet;
 
@@ -27,10 +28,28 @@ pub struct AssetsTrackProgress;
 /// It is initialized with the app, so that it is available for you to add
 /// your asset handles before the load state becomes active.
 /// On exiting the load state, its value is simply cleared/reset.
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct AssetsLoading {
     pending: HashSet<UntypedAssetId>,
     done: HashSet<UntypedAssetId>,
+    /// Should we count assets that failed to load as progress?
+    /// Warning: if this is false, you may freeze in your loading state
+    /// if there are any errors. Defaults to true.
+    pub allow_failures: bool,
+    /// Should we check the status of asset dependencies?
+    /// Defaults to true.
+    pub track_dependencies: bool,
+}
+
+impl Default for AssetsLoading {
+    fn default() -> Self {
+        AssetsLoading {
+            pending: Default::default(),
+            done: Default::default(),
+            allow_failures: true,
+            track_dependencies: true,
+        }
+    }
 }
 
 impl AssetsLoading {
@@ -52,18 +71,36 @@ pub(crate) fn assets_progress(
     mut loading: ResMut<AssetsLoading>,
     server: Res<AssetServer>,
 ) -> Progress {
-    // TODO: avoid this temporary vec (HashSet::drain_filter is in Rust nightly)
-    let mut done = vec![];
-    for handle in loading.pending.iter() {
-        if let Some(load_state) = server.get_load_state(*handle) {
-            if load_state == LoadState::Loaded || load_state == LoadState::Failed {
-                done.push(*handle);
+    let mut any_changed = false;
+    {
+        let loading = loading.bypass_change_detection();
+        loading.pending.retain(|aid| {
+            let loaded = server.load_state(*aid);
+            let ready = if loaded == LoadState::Loaded {
+                if loading.track_dependencies {
+                    let loaded_deps = server.recursive_dependency_load_state(*aid);
+                    if loading.allow_failures && loaded_deps == RecursiveDependencyLoadState::Failed {
+                        true
+                    } else {
+                        loaded_deps == RecursiveDependencyLoadState::Loaded
+                    }
+                } else {
+                    true
+                }
+            } else if loading.allow_failures && loaded == LoadState::Failed {
+                true
+            } else {
+                false
+            };
+            if ready {
+                loading.done.insert(*aid);
+                any_changed = true;
             }
-        }
+            !ready
+        });
     }
-    for handle in done {
-        loading.pending.remove(&handle);
-        loading.done.insert(handle);
+    if any_changed {
+        loading.set_changed();
     }
 
     Progress {
