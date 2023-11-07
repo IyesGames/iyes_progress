@@ -2,6 +2,17 @@
 
 Notable user-facing changes with each release version will be described in this file.
 
+## [0.10.0]: 2023-11-7
+
+### Changed
+ - Bevy 0.12 compatibility
+ - Assets tracking now accounts for dependencies by default
+
+### Added
+ - API for configuring when progress is checked (#25, thanks @UkoeHB)
+ - Assets tracking can now be configured to not progress failed assets
+ - Assets tracking can now be configured to not check asset dependencies
+
 ## [0.9.1]: 2023-07-19
 
 ### Fixed
