@@ -38,7 +38,7 @@ fn main() {
                 internal_thing.track_progress(),
                 // we can also add regular untracked systems to our loading screen,
                 // like to draw our progress bar:
-                ui_progress_bar,
+                ui_progress_bar.after(TrackedProgressSet),
             )
                 .run_if(in_state(AppState::GameLoading)),
         )

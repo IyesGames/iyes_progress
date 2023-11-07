@@ -50,7 +50,6 @@ use bevy_utils::{Duration, Instant};
 
 #[cfg(feature = "debug")]
 use bevy_log::prelude::*;
-
 #[cfg(feature = "assets")]
 mod asset;
 
@@ -63,6 +62,7 @@ pub mod prelude {
     pub use crate::ProgressCounter;
     pub use crate::ProgressPlugin;
     pub use crate::ProgressSystem;
+    pub use crate::TrackedProgressSet;
 }
 
 /// Progress reported by a system
@@ -165,8 +165,12 @@ pub struct HiddenProgress(pub Progress);
 /// # use iyes_progress::ProgressPlugin;
 /// # let mut app = App::default();
 /// # app.add_state::<MyState>();
-/// app.add_plugins(ProgressPlugin::new(MyState::GameLoading).continue_to(MyState::InGame));
-/// app.add_plugins(ProgressPlugin::new(MyState::Splash).continue_to(MyState::MainMenu));
+/// app.add_plugins((
+///     ProgressPlugin::new(MyState::GameLoading)
+///         .continue_to(MyState::InGame),
+///     ProgressPlugin::new(MyState::Splash)
+///         .continue_to(MyState::MainMenu),
+/// ));
 /// # #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, States)]
 /// # enum MyState {
 /// #     #[default]
@@ -312,7 +316,7 @@ where
 {
     fn track_progress(self) -> SystemConfigs {
         self.pipe(|In(progress): In<T>, counter: Res<ProgressCounter>| {
-            progress.apply_progress(&*counter);
+            progress.apply_progress(&counter);
         })
         .in_set(TrackedProgressSet)
     }

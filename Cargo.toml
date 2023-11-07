@@ -1,6 +1,6 @@
 [package]
 name = "iyes_progress"
-version = "0.9.1"
+version = "0.10.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
@@ -10,11 +10,11 @@ categories = ["game-engines"]
 description = "Bevy plugin to help implement loading states"
 
 [dependencies]
-bevy_ecs = { version = "0.11" }
-bevy_app = { version = "0.11" }
-bevy_asset = { version = "0.11", optional = true }
-bevy_log = { version = "0.11", optional = true }
-bevy_utils = { version = "0.11" }
+bevy_ecs = { version = "0.12" }
+bevy_app = { version = "0.12" }
+bevy_asset = { version = "0.12", optional = true }
+bevy_log = { version = "0.12", optional = true }
+bevy_utils = { version = "0.12" }
 
 [features]
 # Support for simple tracking of asset loading
@@ -23,7 +23,7 @@ assets = ["bevy_asset"]
 debug = ["bevy_log"]
 
 [dev-dependencies]
-bevy = { version = "0.11" }
+bevy = { version = "0.12" }
 
 [[example]]
 name = "full"
