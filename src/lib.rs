@@ -45,7 +45,7 @@ use std::sync::atomic::Ordering as MemOrdering;
 
 use bevy_app::{prelude::*, MainScheduleOrder};
 use bevy_ecs::prelude::*;
-use bevy_ecs::schedule::{ExecutorKind, SystemConfigs, ScheduleLabel};
+use bevy_ecs::schedule::{BoxedScheduleLabel, ExecutorKind, SystemConfigs, ScheduleLabel};
 use bevy_utils::{Duration, Instant};
 
 #[cfg(feature = "debug")]
@@ -165,7 +165,12 @@ pub struct HiddenProgress(pub Progress);
 /// # use iyes_progress::ProgressPlugin;
 /// # let mut app = App::default();
 /// # app.add_state::<MyState>();
-/// app.add_plugins((ProgressPlugin::new(MyState::GameLoading).continue_to(MyState::InGame), ProgressPlugin::new(MyState::Splash).continue_to(MyState::MainMenu)));
+/// app.add_plugins((
+///     ProgressPlugin::new(MyState::GameLoading)
+///         .continue_to(MyState::InGame),
+///     ProgressPlugin::new(MyState::Splash)
+///         .continue_to(MyState::MainMenu),
+/// ));
 /// # #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, States)]
 /// # enum MyState {
 /// #     #[default]
@@ -184,6 +189,8 @@ pub struct ProgressPlugin<S: States> {
     pub(crate) plugin_name: String,
     /// Whether to enable the optional assets tracking feature
     pub track_assets: bool,
+    /// The schedule where progress checking should occur (`Last` by default).
+    pub check_progress_schedule: BoxedScheduleLabel,
 }
 
 impl<S: States> ProgressPlugin<S> {
@@ -194,6 +201,7 @@ impl<S: States> ProgressPlugin<S> {
             state,
             next_state: None,
             track_assets: false,
+            check_progress_schedule: Box::new(Last),
         }
     }
 
@@ -201,6 +209,12 @@ impl<S: States> ProgressPlugin<S> {
     /// in the loading state is completed.
     pub fn continue_to(mut self, next_state: S) -> Self {
         self.next_state = Some(next_state);
+        self
+    }
+
+    /// Configure the [`ProgressPlugin`] to check progress in the specified schedule instead of `Last`.
+    pub fn check_progress_in<L: ScheduleLabel>(mut self, schedule: L) -> Self {
+        self.check_progress_schedule = Box::new(schedule);
         self
     }
 
@@ -238,14 +252,14 @@ impl<S: States> Plugin for ProgressPlugin<S> {
         app.add_systems(OnEnter(self.state.clone()), loadstate_enter);
         app.add_systems(OnExit(self.state.clone()), loadstate_exit);
 
-        // check progress and queue any state transition as late as possible, in `Last`
+        // check progress and queue any state transitions in the specified schedule
         if let Some(next_state) = &self.next_state {
-            app.add_systems(
-                Last,
+            app.add_systems(self.check_progress_schedule.clone(),
                 check_progress::<S>(next_state.clone())
                     .run_if(in_state(self.state.clone()))
                     // just in case some progress-tracked systems exist in `Last`
                     .after(TrackedProgressSet)
+                    .in_set(CheckProgressSet)
             );
         }
 
@@ -332,6 +346,11 @@ pub struct ProgressPreparationSchedule;
 /// [`track_progress`]: crate::ProgressSystem::track_progress
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
 pub struct TrackedProgressSet;
+
+/// This set represents the 'check progress' step.
+/// It is only useful in the schedule where progress checking occurs (`Last` by default).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
+pub struct CheckProgressSet;
 
 /// Resource for tracking overall progress
 ///
