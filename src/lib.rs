@@ -45,7 +45,7 @@ use std::sync::atomic::Ordering as MemOrdering;
 
 use bevy_app::{prelude::*, MainScheduleOrder};
 use bevy_ecs::prelude::*;
-use bevy_ecs::schedule::{BoxedScheduleLabel, ExecutorKind, SystemConfigs, ScheduleLabel};
+use bevy_ecs::schedule::{InternedScheduleLabel, ExecutorKind, SystemConfigs, ScheduleLabel};
 use bevy_utils::{Duration, Instant};
 
 #[cfg(feature = "debug")]
@@ -190,7 +190,7 @@ pub struct ProgressPlugin<S: States> {
     /// Whether to enable the optional assets tracking feature
     pub track_assets: bool,
     /// The schedule where progress checking should occur (`Last` by default).
-    pub check_progress_schedule: BoxedScheduleLabel,
+    pub check_progress_schedule: InternedScheduleLabel,
 }
 
 impl<S: States> ProgressPlugin<S> {
@@ -201,7 +201,7 @@ impl<S: States> ProgressPlugin<S> {
             state,
             next_state: None,
             track_assets: false,
-            check_progress_schedule: Box::new(Last),
+            check_progress_schedule: Last.intern(),
         }
     }
 
@@ -214,7 +214,7 @@ impl<S: States> ProgressPlugin<S> {
 
     /// Configure the [`ProgressPlugin`] to check progress in the specified schedule instead of `Last`.
     pub fn check_progress_in<L: ScheduleLabel>(mut self, schedule: L) -> Self {
-        self.check_progress_schedule = Box::new(schedule);
+        self.check_progress_schedule = schedule.intern();
         self
     }
 
