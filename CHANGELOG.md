@@ -2,6 +2,12 @@
 
 Notable user-facing changes with each release version will be described in this file.
 
+
+## [0.11.0]: 2023-02-18
+
+### Changed
+- Bevy 0.13 compatibility
+
 ## [0.10.0]: 2023-11-7
 
 ### Changed
