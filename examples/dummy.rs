@@ -15,7 +15,7 @@ fn main() {
         // Init bevy
         .add_plugins(DefaultPlugins)
         // Add our state type
-        .add_state::<AppState>()
+        .init_state::<AppState>()
         .add_plugins(
             ProgressPlugin::new(AppState::Loading)
                 .continue_to(AppState::MainMenu)

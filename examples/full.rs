@@ -17,7 +17,7 @@ fn main() {
         // Init bevy
         .add_plugins(DefaultPlugins)
         // Add our state type
-        .add_state::<AppState>()
+        .init_state::<AppState>()
         // Add plugin for the splash screen
         .add_plugins(
             ProgressPlugin::new(AppState::Splash)

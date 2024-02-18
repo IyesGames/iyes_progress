@@ -164,7 +164,7 @@ pub struct HiddenProgress(pub Progress);
 /// # use bevy::prelude::*;
 /// # use iyes_progress::ProgressPlugin;
 /// # let mut app = App::default();
-/// # app.add_state::<MyState>();
+/// # app.init_state::<MyState>();
 /// app.add_plugins((
 ///     ProgressPlugin::new(MyState::GameLoading)
 ///         .continue_to(MyState::InGame),
