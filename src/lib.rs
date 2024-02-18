@@ -272,7 +272,7 @@ impl<S: States> Plugin for ProgressPlugin<S> {
                 Last,
                 debug_progress
                     .after(TrackedProgressSet)
-                    .run_if(resource_exists::<ProgressCounter>())
+                    .run_if(resource_exists::<ProgressCounter>)
                     .run_if(progress_debug_enabled)
             );
         }
