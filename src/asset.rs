@@ -76,21 +76,21 @@ pub(crate) fn assets_progress(
         let loading = loading.bypass_change_detection();
         loading.pending.retain(|aid| {
             let loaded = server.load_state(*aid);
-            let ready = if loaded == LoadState::Loaded {
-                if loading.track_dependencies {
-                    let loaded_deps = server.recursive_dependency_load_state(*aid);
-                    if loading.allow_failures && loaded_deps == RecursiveDependencyLoadState::Failed {
-                        true
+            let ready = match loaded {
+                LoadState::NotLoaded => false,
+                LoadState::Loading => false,
+                LoadState::Loaded =>
+                    if loading.track_dependencies {
+                        let loaded_deps = server.recursive_dependency_load_state(*aid);
+                        if loading.allow_failures && loaded_deps == RecursiveDependencyLoadState::Failed {
+                            true
+                        } else {
+                            loaded_deps == RecursiveDependencyLoadState::Loaded
+                        }
                     } else {
-                        loaded_deps == RecursiveDependencyLoadState::Loaded
+                        true
                     }
-                } else {
-                    true
-                }
-            } else if loading.allow_failures && loaded == LoadState::Failed {
-                true
-            } else {
-                false
+                LoadState::Failed(_) => loading.allow_failures
             };
             if ready {
                 loading.done.insert(*aid);

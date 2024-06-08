@@ -50,6 +50,9 @@ use bevy_utils::{Duration, Instant};
 
 #[cfg(feature = "debug")]
 use bevy_log::prelude::*;
+use bevy_state::condition::in_state;
+use bevy_state::state::{FreelyMutableState, NextState, OnEnter, OnExit, StateTransition};
+
 #[cfg(feature = "assets")]
 mod asset;
 
@@ -180,7 +183,7 @@ pub struct HiddenProgress(pub Progress);
 /// #     InGame,
 /// # }
 /// ```
-pub struct ProgressPlugin<S: States> {
+pub struct ProgressPlugin<S: FreelyMutableState> {
     /// The loading state during which progress will be tracked
     pub state: S,
     /// The next state to transition to, when all progress completes
@@ -193,7 +196,7 @@ pub struct ProgressPlugin<S: States> {
     pub check_progress_schedule: InternedScheduleLabel,
 }
 
-impl<S: States> ProgressPlugin<S> {
+impl<S: FreelyMutableState> ProgressPlugin<S> {
     /// Create a [`ProgressPlugin`] running during the given State
     pub fn new(state: S) -> Self {
         ProgressPlugin {
@@ -226,7 +229,7 @@ impl<S: States> ProgressPlugin<S> {
     }
 }
 
-impl<S: States> Plugin for ProgressPlugin<S> {
+impl<S: FreelyMutableState> Plugin for ProgressPlugin<S> {
     fn build(&self, app: &mut App) {
         // set up a schedule after `StateTransition`, where we init our stuff
         if app.get_schedule(ProgressPreparationSchedule).is_none() {
@@ -235,7 +238,7 @@ impl<S: States> Plugin for ProgressPlugin<S> {
                 sched.set_executor_kind(ExecutorKind::SingleThreaded);
             });
             app.init_resource::<MainScheduleOrder>();
-            app.world.resource_mut::<MainScheduleOrder>()
+            app.world_mut().resource_mut::<MainScheduleOrder>()
                 .insert_after(StateTransition, ProgressPreparationSchedule);
         }
 
@@ -266,7 +269,7 @@ impl<S: States> Plugin for ProgressPlugin<S> {
         #[cfg(feature = "debug")]
         // ensure we only add this stuff once, even if the plugin is added multiple times
         // (it is state-agnostic)
-        if !app.world.contains_resource::<ProgressDebug>() {
+        if !app.world().contains_resource::<ProgressDebug>() {
             app.init_resource::<ProgressDebug>();
             app.add_systems(
                 Last,
@@ -322,7 +325,7 @@ where
     }
 }
 
-fn check_progress<S: States>(next_state: S) -> impl FnMut(Res<ProgressCounter>, ResMut<NextState<S>>) {
+fn check_progress<S: FreelyMutableState>(next_state: S) -> impl FnMut(Res<ProgressCounter>, ResMut<NextState<S>>) {
     move |progress, mut state| {
         if progress.progress_complete().is_ready() {
             state.set(next_state.clone());
