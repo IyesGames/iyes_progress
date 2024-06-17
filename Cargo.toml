@@ -10,12 +10,12 @@ categories = ["game-engines"]
 description = "Bevy plugin to help implement loading states"
 
 [dependencies]
-bevy_ecs = { version = "0.14.0-rc.2" }
-bevy_app = { version = "0.14.0-rc.2" }
-bevy_state = { version = "0.14.0-rc.2" }
-bevy_asset = { version = "0.14.0-rc.2", optional = true }
-bevy_log = { version = "0.14.0-rc.2", optional = true }
-bevy_utils = { version = "0.14.0-rc.2" }
+bevy_ecs = { version = "0.14.0-rc.3" }
+bevy_app = { version = "0.14.0-rc.3" }
+bevy_state = { version = "0.14.0-rc.3" }
+bevy_asset = { version = "0.14.0-rc.3", optional = true }
+bevy_log = { version = "0.14.0-rc.3", optional = true }
+bevy_utils = { version = "0.14.0-rc.3" }
 
 [features]
 # Support for simple tracking of asset loading
@@ -24,7 +24,7 @@ assets = ["bevy_asset"]
 debug = ["bevy_log"]
 
 [dev-dependencies]
-bevy = { version = "0.14.0-rc.2" }
+bevy = { version = "0.14.0-rc.3" }
 
 [[example]]
 name = "full"
