@@ -3,7 +3,13 @@
 Notable user-facing changes with each release version will be described in this file.
 
 
-## [0.11.0]: 2023-02-18
+## [0.12.0]: 2024-07-05
+
+### Changed
+- Bevy 0.14 compatibility
+- Asset progress tracking now happens in `PostUpdate`
+
+## [0.11.0]: 2024-02-18
 
 ### Changed
 - Bevy 0.13 compatibility

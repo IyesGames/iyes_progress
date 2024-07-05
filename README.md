@@ -10,8 +10,8 @@ Bevy Compatibility:
 
 | Bevy Version | Plugin Version       |
 |--------------|----------------------|
-| `main`       | `bevy_main`          |
-| `0.13`       | `main`               |
+| `main`       | N/A                  |
+| `0.14`       | `0.12`,`main`        |
 | `0.13`       | `0.11`               |
 | `0.12`       | `0.10`               |
 | `0.11`       | `0.9`                |
