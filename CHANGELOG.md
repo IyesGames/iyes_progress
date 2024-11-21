@@ -51,5 +51,9 @@ Major overhaul. See [migration guide](./MIGRATION_012_013.md).
 
 Unfortunately, I was not keeping changelogs for older versions. :(
 
+[0.13.0-rc.1]: https://github.com/IyesGames/iyes_progress/tree/v0.13.0-rc.1
+[0.12.0]: https://github.com/IyesGames/iyes_progress/tree/v0.12.0
+[0.11.0]: https://github.com/IyesGames/iyes_progress/tree/v0.11.0
+[0.10.0]: https://github.com/IyesGames/iyes_progress/tree/v0.10.0
 [0.9.1]: https://github.com/IyesGames/iyes_progress/tree/v0.9.1
 [0.9.0]: https://github.com/IyesGames/iyes_progress/tree/v0.9.0
