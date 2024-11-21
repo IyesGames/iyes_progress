@@ -1,11 +1,12 @@
+use std::marker::PhantomData;
+
 use bevy_asset::prelude::*;
-use bevy_asset::UntypedAssetId;
-use bevy_asset::LoadState;
-use bevy_asset::RecursiveDependencyLoadState;
+use bevy_asset::{LoadState, UntypedAssetId};
 use bevy_ecs::prelude::*;
+use bevy_state::state::FreelyMutableState;
 use bevy_utils::HashSet;
 
-use crate::Progress;
+use crate::prelude::*;
 
 /// System Set for assets progress tracking.
 ///
@@ -17,19 +18,19 @@ pub struct AssetsTrackProgress;
 
 /// Resource for tracking the loading of assets
 ///
-/// You must `.add(&handle)` all of your assets here, if you want to wait
-/// for their loading to complete before transitioning to the next app state.
-/// You should do this during `on_enter` for the loading state (or earlier).
+/// Note: to use this, you have to call
+/// [`.with_asset_tracking`](ProgressPlugin::with_asset_tracking)
+/// when creating your [`ProgressPlugin`].
 ///
-/// Note that failed/errored/unloaded assets are counted as completed.
-/// Otherwise, your game could get stuck on the loading screen.
+/// You can add asset handles here, and we will check their status for you
+/// and record loading progress.
 ///
-/// This resource is not added/removed when entering/exiting the load state.
-/// It is initialized with the app, so that it is available for you to add
-/// your asset handles before the load state becomes active.
-/// On exiting the load state, its value is simply cleared/reset.
+/// Note that failed/errored/unloaded assets are counted as completed by
+/// default. Otherwise, your game could get stuck on the loading screen.
+///
+/// This resource should not be removed.
 #[derive(Resource)]
-pub struct AssetsLoading {
+pub struct AssetsLoading<S: FreelyMutableState> {
     pending: HashSet<UntypedAssetId>,
     done: HashSet<UntypedAssetId>,
     /// Should we count assets that failed to load as progress?
@@ -39,20 +40,22 @@ pub struct AssetsLoading {
     /// Should we check the status of asset dependencies?
     /// Defaults to true.
     pub track_dependencies: bool,
+    _pd: PhantomData<S>,
 }
 
-impl Default for AssetsLoading {
+impl<S: FreelyMutableState> Default for AssetsLoading<S> {
     fn default() -> Self {
         AssetsLoading {
             pending: Default::default(),
             done: Default::default(),
             allow_failures: true,
             track_dependencies: true,
+            _pd: PhantomData,
         }
     }
 }
 
-impl AssetsLoading {
+impl<S: FreelyMutableState> AssetsLoading<S> {
     /// Add an asset to be tracked
     pub fn add<T: Into<UntypedAssetId>>(&mut self, handle: T) {
         let asset_id = handle.into();
@@ -61,14 +64,14 @@ impl AssetsLoading {
         }
     }
 
-    /// Have all assets finished loading?
+    /// Have all tracked assets finished loading?
     pub fn is_ready(&self) -> bool {
         self.pending.is_empty()
     }
 }
 
-pub(crate) fn assets_progress(
-    mut loading: ResMut<AssetsLoading>,
+pub(crate) fn assets_progress<S: FreelyMutableState>(
+    mut loading: ResMut<AssetsLoading<S>>,
     server: Res<AssetServer>,
 ) -> Progress {
     let mut any_changed = false;
@@ -79,18 +82,20 @@ pub(crate) fn assets_progress(
             let ready = match loaded {
                 LoadState::NotLoaded => false,
                 LoadState::Loading => false,
-                LoadState::Loaded =>
+                LoadState::Loaded => {
                     if loading.track_dependencies {
-                        let loaded_deps = server.recursive_dependency_load_state(*aid);
-                        if loading.allow_failures && loaded_deps == RecursiveDependencyLoadState::Failed {
+                        let loaded_deps =
+                            server.recursive_dependency_load_state(*aid);
+                        if loading.allow_failures && loaded_deps.is_failed() {
                             true
                         } else {
-                            loaded_deps == RecursiveDependencyLoadState::Loaded
+                            loaded_deps.is_loaded()
                         }
                     } else {
                         true
                     }
-                LoadState::Failed(_) => loading.allow_failures
+                }
+                LoadState::Failed(_) => loading.allow_failures,
             };
             if ready {
                 loading.done.insert(*aid);
@@ -109,6 +114,8 @@ pub(crate) fn assets_progress(
     }
 }
 
-pub(crate) fn assets_loading_reset(mut loading: ResMut<AssetsLoading>) {
+pub(crate) fn assets_loading_reset<S: FreelyMutableState>(
+    mut loading: ResMut<AssetsLoading<S>>,
+) {
     *loading = AssetsLoading::default();
 }

@@ -3,6 +3,10 @@
 Notable user-facing changes with each release version will be described in this file.
 
 
+## [0.13.0-rc.1]: 2024-11-21
+
+Major overhaul. See [migration guide](./MIGRATION_012_013.md).
+
 ## [0.12.0]: 2024-07-05
 
 ### Changed
