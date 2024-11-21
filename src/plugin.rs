@@ -4,9 +4,8 @@ use bevy_ecs::schedule::{InternedScheduleLabel, ScheduleLabel};
 use bevy_state::prelude::*;
 use bevy_state::state::FreelyMutableState;
 
-use crate::prelude::ProgressTracker;
+use crate::prelude::*;
 use crate::state::*;
-use crate::ProgressReturningSystem;
 
 /// Add this plugin to enable progress tracking for your states type.
 ///
