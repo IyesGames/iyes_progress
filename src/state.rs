@@ -4,7 +4,7 @@ use bevy_log::prelude::*;
 use bevy_state::state::{FreelyMutableState, NextState, State};
 use bevy_utils::HashMap;
 
-use crate::prelude::ProgressTracker;
+use crate::prelude::*;
 
 #[derive(Resource, Clone)]
 pub(crate) struct StateTransitionConfig<S: FreelyMutableState> {
@@ -19,16 +19,20 @@ impl<S: FreelyMutableState> Default for StateTransitionConfig<S> {
     }
 }
 
-pub(crate) fn clear_global_progress<S: FreelyMutableState>(
+/// System that calls [`ProgressTracker::clear`].
+///
+/// This will be automatically added to the `OnEnter`/`OnExit`
+/// schedules of progress-tracked states, if so configured
+/// by the [`ProgressPlugin`].
+///
+/// This `fn` is `pub` so you can order your systems around it.
+/// Or add other "clearing points" to your app.
+pub fn clear_global_progress<S: FreelyMutableState>(
     mut gpt: ResMut<ProgressTracker<S>>,
-    #[cfg(feature = "debug")] state: Res<State<S>>,
 ) {
     gpt.clear();
     #[cfg(feature = "debug")]
-    debug!(
-        "Entering tracked state {:?}. Clearing GlobalProgressTracker.",
-        state.get()
-    );
+    debug!("Clearing progress data.");
 }
 
 pub(crate) fn rc_configured_state<S: FreelyMutableState>(

@@ -114,7 +114,15 @@ pub(crate) fn assets_progress<S: FreelyMutableState>(
     }
 }
 
-pub(crate) fn assets_loading_reset<S: FreelyMutableState>(
+/// This system clears the [`AssetsLoading<S>`] resource.
+///
+/// This will be automatically added to the `OnEnter`/`OnExit`
+/// schedules of progress-tracked states, if so configured
+/// by the [`ProgressPlugin`].
+///
+/// This `fn` is `pub` so you can order your systems around it.
+/// Or add other "clearing points" to your app.
+pub fn assets_loading_reset<S: FreelyMutableState>(
     mut loading: ResMut<AssetsLoading<S>>,
 ) {
     *loading = AssetsLoading::default();

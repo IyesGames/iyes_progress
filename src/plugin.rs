@@ -5,7 +5,6 @@ use bevy_state::prelude::*;
 use bevy_state::state::FreelyMutableState;
 
 use crate::prelude::*;
-use crate::state::*;
 
 /// Add this plugin to enable progress tracking for your states type.
 ///
@@ -26,8 +25,14 @@ use crate::state::*;
 pub struct ProgressPlugin<S: FreelyMutableState> {
     transitions: StateTransitionConfig<S>,
     check_progress_schedule: InternedScheduleLabel,
+    autoclear_on_enter: bool,
+    autoclear_on_exit: bool,
     #[cfg(feature = "assets")]
     track_assets: bool,
+    #[cfg(feature = "assets")]
+    autoclear_assets_on_enter: bool,
+    #[cfg(feature = "assets")]
+    autoclear_assets_on_exit: bool,
 }
 
 /// This set represents the "check progress and transition state if ready" step.
@@ -41,8 +46,14 @@ impl<S: FreelyMutableState> Default for ProgressPlugin<S> {
         Self {
             check_progress_schedule: Last.intern(),
             transitions: Default::default(),
+            autoclear_on_enter: true,
+            autoclear_on_exit: false,
             #[cfg(feature = "assets")]
             track_assets: false,
+            #[cfg(feature = "assets")]
+            autoclear_assets_on_enter: false,
+            #[cfg(feature = "assets")]
+            autoclear_assets_on_exit: true,
         }
     }
 }
@@ -89,6 +100,46 @@ impl<S: FreelyMutableState> ProgressPlugin<S> {
         self
     }
 
+    /// Configure whether progress data should be cleared when entering/exiting
+    /// a progress-tracked state.
+    ///
+    /// Default: `on_enter: true, on_exit: false`.
+    pub fn auto_clear(mut self, on_enter: bool, on_exit: bool) -> Self {
+        self.autoclear_on_enter = on_enter;
+        self.autoclear_on_exit = on_exit;
+        self
+    }
+
+    /// Configure whether progress data should be cleared when entering/exiting
+    /// a progress-tracked state.
+    ///
+    /// Default: `on_enter: true, on_exit: false`.
+    pub fn set_auto_clear(&mut self, on_enter: bool, on_exit: bool) {
+        self.autoclear_on_enter = on_enter;
+        self.autoclear_on_exit = on_exit;
+    }
+
+    /// Configure whether assets tracking data should be cleared when
+    /// entering/exiting a progress-tracked state.
+    ///
+    /// Default: `on_enter: false, on_exit: true`.
+    #[cfg(feature = "assets")]
+    pub fn auto_clear_assets(mut self, on_enter: bool, on_exit: bool) -> Self {
+        self.autoclear_assets_on_enter = on_enter;
+        self.autoclear_assets_on_exit = on_exit;
+        self
+    }
+
+    /// Configure whether assets tracking data should be cleared when
+    /// entering/exiting a progress-tracked state.
+    ///
+    /// Default: `on_enter: false, on_exit: true`.
+    #[cfg(feature = "assets")]
+    pub fn set_auto_clear_assets(&mut self, on_enter: bool, on_exit: bool) {
+        self.autoclear_assets_on_enter = on_enter;
+        self.autoclear_assets_on_exit = on_exit;
+    }
+
     /// Set whether the built-in asset tracking should be enabled.
     #[cfg(feature = "assets")]
     pub fn set_asset_tracking(&mut self, asset_tracking: bool) {
@@ -114,7 +165,12 @@ impl<S: FreelyMutableState> Plugin for ProgressPlugin<S> {
                 .in_set(CheckProgressSet),
         );
         for s in self.transitions.map_from_to.keys() {
-            app.add_systems(OnEnter(s.clone()), clear_global_progress::<S>);
+            if self.autoclear_on_enter {
+                app.add_systems(OnEnter(s.clone()), clear_global_progress::<S>);
+            }
+            if self.autoclear_on_exit {
+                app.add_systems(OnExit(s.clone()), clear_global_progress::<S>);
+            }
         }
         #[cfg(feature = "debug")]
         {
@@ -139,7 +195,20 @@ impl<S: FreelyMutableState> Plugin for ProgressPlugin<S> {
                     .run_if(rc_configured_state::<S>),
             );
             for s in self.transitions.map_from_to.keys() {
-                app.add_systems(OnExit(s.clone()), assets_loading_reset::<S>);
+                if self.autoclear_assets_on_enter {
+                    app.add_systems(
+                        OnEnter(s.clone()),
+                        assets_loading_reset::<S>
+                            .after(clear_global_progress::<S>),
+                    );
+                }
+                if self.autoclear_assets_on_exit {
+                    app.add_systems(
+                        OnExit(s.clone()),
+                        assets_loading_reset::<S>
+                            .after(clear_global_progress::<S>),
+                    );
+                }
             }
         }
     }
