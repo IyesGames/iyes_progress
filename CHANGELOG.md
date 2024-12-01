@@ -3,9 +3,25 @@
 Notable user-facing changes with each release version will be described in this file.
 
 
+## [0.13.0]: 2024-12-01
+
+### Fixed
+- It was possible for asset tracking to get stuck if asset was added and immediately
+  unloaded. Fix: Drop assets if their status is `NotLoaded`.
+
+### Changed
+- Bevy 0.15 compatibility.
+
+### Added
+- Clearing on state enter/exit is now configurable via the `ProgressPlugin`.
+- `ProgressTracker::for_each_entry` method
+
 ## [0.13.0-rc.1]: 2024-11-21
 
-Major overhaul. See [migration guide](./MIGRATION_012_013.md).
+### Changed
+- Bevy 0.15.0-rc.3 compatibility.
+- Most things. :) Major overhaul.
+  - See [migration guide](./MIGRATION_012_013.md).
 
 ## [0.12.0]: 2024-07-05
 
@@ -51,6 +67,7 @@ Major overhaul. See [migration guide](./MIGRATION_012_013.md).
 
 Unfortunately, I was not keeping changelogs for older versions. :(
 
+[0.13.0]: https://github.com/IyesGames/iyes_progress/tree/v0.13.0
 [0.13.0-rc.1]: https://github.com/IyesGames/iyes_progress/tree/v0.13.0-rc.1
 [0.12.0]: https://github.com/IyesGames/iyes_progress/tree/v0.12.0
 [0.11.0]: https://github.com/IyesGames/iyes_progress/tree/v0.11.0
