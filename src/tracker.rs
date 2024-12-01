@@ -78,6 +78,20 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
         *inner = Default::default();
     }
 
+    /// Call a closure on each entry stored in the tracker.
+    ///
+    /// This allows you to inspect or mutate anything stored in the tracker,
+    /// which can be useful for debugging or for advanced use cases.
+    pub fn foreach_entry(
+        &self,
+        mut f: impl FnMut(ProgressEntryId, &mut Progress, &mut HiddenProgress),
+    ) {
+        let mut inner = self.inner.lock();
+        for (k, v) in inner.entries.iter_mut() {
+            f(ProgressEntryId(*k), &mut v.0, &mut v.1);
+        }
+    }
+
     /// Check if there is any progress data stored for a given ID.
     pub fn contains_id(&self, id: ProgressEntryId) -> bool {
         self.inner.lock().entries.contains_key(&id.0)
