@@ -80,7 +80,7 @@ pub(crate) fn assets_progress<S: FreelyMutableState>(
         loading.pending.retain(|aid| {
             let loaded = server.load_state(*aid);
             let ready = match loaded {
-                LoadState::NotLoaded => false,
+                LoadState::NotLoaded => true,
                 LoadState::Loading => false,
                 LoadState::Loaded => {
                     if loading.track_dependencies {
