@@ -160,12 +160,14 @@ To progress:
         .spawn((
             BackgroundColor(Color::srgb(0.25, 0.25, 0.25)),
             BorderColor(Color::srgb(1.0, 1.0, 1.0)),
+            BorderRadius::all(Val::Px(6.0)),
             Node {
                 position_type: PositionType::Absolute,
                 top: Val::Percent(69.0),
                 bottom: Val::Percent(24.0),
                 left: Val::Percent(12.0),
                 right: Val::Percent(12.0),
+                border: UiRect::all(Val::Px(1.0)),
                 ..Default::default()
             },
             StateScoped(MyStates::Loading),
@@ -176,11 +178,13 @@ To progress:
         .spawn((
             BackgroundColor(Color::srgb(0.75, 0.75, 0.75)),
             BorderColor(Color::srgb(0.5, 0.5, 0.5)),
+            BorderRadius::all(Val::Px(8.0)),
             Node {
                 height: Val::Percent(100.0),
                 width: Val::Percent(0.0),
                 padding: UiRect::left(Val::Px(16.0)),
                 align_items: AlignItems::Center,
+                border: UiRect::all(Val::Px(1.0)),
                 ..Default::default()
             },
             ProgressBarInner,
@@ -245,6 +249,9 @@ fn main() {
         .add_systems(Startup, setup_camera)
         .add_systems(OnEnter(MyStates::Loading), setup_loading_ui)
         .add_systems(OnEnter(MyStates::Done), setup_done_ui)
-        .add_systems(Update, update_progress_bar)
+        .add_systems(
+            Update,
+            update_progress_bar.run_if(in_state(MyStates::Loading)),
+        )
         .run();
 }
