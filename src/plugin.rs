@@ -164,6 +164,12 @@ impl<S: FreelyMutableState> Plugin for ProgressPlugin<S> {
                 .run_if(rc_configured_state::<S>)
                 .in_set(CheckProgressSet),
         );
+        app.add_systems(
+            PostUpdate,
+            apply_progress_from_entities::<S>
+                .run_if(rc_configured_state::<S>)
+                .run_if(any_with_component::<ProgressEntity<S>>),
+        );
         for s in self.transitions.map_from_to.keys() {
             if self.autoclear_on_enter {
                 app.add_systems(OnEnter(s.clone()), clear_global_progress::<S>);

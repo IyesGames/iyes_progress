@@ -27,13 +27,23 @@ static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
 /// [`ProgressEntryId::new()`]. Store that ID and then use it to update the
 /// values in the [`ProgressTracker`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ProgressEntryId(usize);
+pub struct ProgressEntryId(ProgressEntryIdInner);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum ProgressEntryIdInner {
+    Monotonic(usize),
+    Entity(Entity),
+}
 
 impl ProgressEntryId {
     /// Create a new unique ID
     pub fn new() -> ProgressEntryId {
         let next_id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-        ProgressEntryId(next_id)
+        ProgressEntryId(ProgressEntryIdInner::Monotonic(next_id))
+    }
+
+    pub(crate) fn from_entity(e: Entity) -> ProgressEntryId {
+        ProgressEntryId(ProgressEntryIdInner::Entity(e))
     }
 }
 
@@ -67,7 +77,7 @@ impl<S: FreelyMutableState> Default for ProgressTracker<S> {
 
 #[derive(Default)]
 struct GlobalProgressTrackerInner {
-    entries: HashMap<usize, (Progress, HiddenProgress)>,
+    entries: HashMap<ProgressEntryId, (Progress, HiddenProgress)>,
     accum: (Progress, HiddenProgress),
 }
 
@@ -94,7 +104,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
 
     /// Check if there is any progress data stored for a given ID.
     pub fn contains_id(&self, id: ProgressEntryId) -> bool {
-        self.inner.lock().entries.contains_key(&id.0)
+        self.inner.lock().entries.contains_key(&id)
     }
 
     /// Check if all progress is complete.
@@ -111,7 +121,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
         let inner = self.inner.lock();
         inner
             .entries
-            .get(&id.0)
+            .get(&id)
             .map(|x| (x.0 + x.1 .0).is_ready())
             .unwrap_or_default()
     }
@@ -142,13 +152,13 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
     /// Get the visible progress stored for a specific ID.
     pub fn get_progress(&self, id: ProgressEntryId) -> Progress {
         let inner = self.inner.lock();
-        inner.entries.get(&id.0).copied().unwrap_or_default().0
+        inner.entries.get(&id).copied().unwrap_or_default().0
     }
 
     /// Get the hidden progress stored for a specific ID.
     pub fn get_hidden_progress(&self, id: ProgressEntryId) -> HiddenProgress {
         let inner = self.inner.lock();
-        inner.entries.get(&id.0).copied().unwrap_or_default().1
+        inner.entries.get(&id).copied().unwrap_or_default().1
     }
 
     /// Get the visible+hidden progress stored for a specific ID.
@@ -156,7 +166,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
         let inner = self.inner.lock();
         inner
             .entries
-            .get(&id.0)
+            .get(&id)
             .map(|x| x.0 + x.1 .0)
             .unwrap_or_default()
     }
@@ -164,37 +174,25 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
     /// Get the (visible) expected work item count for a specific ID.
     pub fn get_total(&self, id: ProgressEntryId) -> u32 {
         let inner = self.inner.lock();
-        inner
-            .entries
-            .get(&id.0)
-            .copied()
-            .unwrap_or_default()
-            .0
-            .total
+        inner.entries.get(&id).copied().unwrap_or_default().0.total
     }
 
     /// Get the (visible) completed work item count for a specific ID.
     pub fn get_done(&self, id: ProgressEntryId) -> u32 {
         let inner = self.inner.lock();
-        inner.entries.get(&id.0).copied().unwrap_or_default().0.done
+        inner.entries.get(&id).copied().unwrap_or_default().0.done
     }
 
     /// Get the (hidden) expected work item count for a specific ID.
     pub fn get_hidden_total(&self, id: ProgressEntryId) -> u32 {
         let inner = self.inner.lock();
-        inner
-            .entries
-            .get(&id.0)
-            .copied()
-            .unwrap_or_default()
-            .1
-            .total
+        inner.entries.get(&id).copied().unwrap_or_default().1.total
     }
 
     /// Get the (hidden) completed work item count for a specific ID.
     pub fn get_hidden_done(&self, id: ProgressEntryId) -> u32 {
         let inner = self.inner.lock();
-        inner.entries.get(&id.0).copied().unwrap_or_default().1.done
+        inner.entries.get(&id).copied().unwrap_or_default().1.done
     }
 
     /// Overwrite the stored visible progress for a specific ID.
@@ -202,7 +200,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
     /// Use this when you want to overwrite both the `total` and `done` at once.
     pub fn set_progress(&self, id: ProgressEntryId, done: u32, total: u32) {
         let inner = &mut *self.inner.lock();
-        if let Some(p) = inner.entries.get_mut(&id.0) {
+        if let Some(p) = inner.entries.get_mut(&id) {
             if p.0.total < total {
                 let diff = total - p.0.total;
                 inner.accum.0.total += diff;
@@ -222,7 +220,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
             p.0 = Progress { done, total };
         } else {
             inner.entries.insert(
-                id.0,
+                id,
                 (Progress { done, total }, HiddenProgress::default()),
             );
             inner.accum.0.total += total;
@@ -240,7 +238,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
         total: u32,
     ) {
         let inner = &mut *self.inner.lock();
-        if let Some(p) = inner.entries.get_mut(&id.0) {
+        if let Some(p) = inner.entries.get_mut(&id) {
             if p.1.total < total {
                 let diff = total - p.1.total;
                 inner.accum.1.total += diff;
@@ -260,7 +258,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
             p.1 = Progress { done, total }.into();
         } else {
             inner.entries.insert(
-                id.0,
+                id,
                 (Progress::default(), Progress { done, total }.into()),
             );
             inner.accum.1.total += total;
@@ -271,7 +269,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
     /// Overwrite the stored (visible) expected work items for a specific ID.
     pub fn set_total(&self, id: ProgressEntryId, total: u32) {
         let inner = &mut *self.inner.lock();
-        if let Some(p) = inner.entries.get_mut(&id.0) {
+        if let Some(p) = inner.entries.get_mut(&id) {
             if p.0.total < total {
                 let diff = total - p.0.total;
                 inner.accum.0.total += diff;
@@ -283,7 +281,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
             p.0.total = total;
         } else {
             inner.entries.insert(
-                id.0,
+                id,
                 (Progress { done: 0, total }, HiddenProgress::default()),
             );
             inner.accum.0.total += total;
@@ -293,7 +291,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
     /// Overwrite the stored (visible) completed work items for a specific ID.
     pub fn set_done(&self, id: ProgressEntryId, done: u32) {
         let inner = &mut *self.inner.lock();
-        if let Some(p) = inner.entries.get_mut(&id.0) {
+        if let Some(p) = inner.entries.get_mut(&id) {
             if p.0.done < done {
                 let diff = done - p.0.done;
                 inner.accum.0.done += diff;
@@ -305,7 +303,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
             p.0.done = done;
         } else {
             inner.entries.insert(
-                id.0,
+                id,
                 (Progress { done, total: 0 }, HiddenProgress::default()),
             );
             inner.accum.0.done += done;
@@ -315,7 +313,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
     /// Overwrite the stored (hidden) expected work items for a specific ID.
     pub fn set_hidden_total(&self, id: ProgressEntryId, total: u32) {
         let inner = &mut *self.inner.lock();
-        if let Some(p) = inner.entries.get_mut(&id.0) {
+        if let Some(p) = inner.entries.get_mut(&id) {
             if p.1.total < total {
                 let diff = total - p.1.total;
                 inner.accum.1.total += diff;
@@ -327,7 +325,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
             p.1.total = total;
         } else {
             inner.entries.insert(
-                id.0,
+                id,
                 (Progress::default(), Progress { done: 0, total }.into()),
             );
             inner.accum.1.total += total;
@@ -337,7 +335,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
     /// Overwrite the stored (hidden) completed work items for a specific ID.
     pub fn set_hidden_done(&self, id: ProgressEntryId, done: u32) {
         let inner = &mut *self.inner.lock();
-        if let Some(p) = inner.entries.get_mut(&id.0) {
+        if let Some(p) = inner.entries.get_mut(&id) {
             if p.1.done < done {
                 let diff = done - p.1.done;
                 inner.accum.1.done += diff;
@@ -349,7 +347,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
             p.1.done = done;
         } else {
             inner.entries.insert(
-                id.0,
+                id,
                 (Progress::default(), Progress { done, total: 0 }.into()),
             );
             inner.accum.1.done += done;
@@ -362,12 +360,12 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
     /// Use this when you want to add to both the `total` and `done` at once.
     pub fn add_progress(&self, id: ProgressEntryId, done: u32, total: u32) {
         let inner = &mut *self.inner.lock();
-        if let Some(p) = inner.entries.get_mut(&id.0) {
+        if let Some(p) = inner.entries.get_mut(&id) {
             p.0.done += done;
             p.0.total += total;
         } else {
             inner.entries.insert(
-                id.0,
+                id,
                 (Progress { done, total }, HiddenProgress::default()),
             );
         }
@@ -379,11 +377,11 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
     /// for a specific ID.
     pub fn add_total(&self, id: ProgressEntryId, total: u32) {
         let inner = &mut *self.inner.lock();
-        if let Some(p) = inner.entries.get_mut(&id.0) {
+        if let Some(p) = inner.entries.get_mut(&id) {
             p.0.total += total;
         } else {
             inner.entries.insert(
-                id.0,
+                id,
                 (Progress { done: 0, total }, HiddenProgress::default()),
             );
         }
@@ -394,11 +392,11 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
     /// for a specific ID.
     pub fn add_done(&self, id: ProgressEntryId, done: u32) {
         let inner = &mut *self.inner.lock();
-        if let Some(p) = inner.entries.get_mut(&id.0) {
+        if let Some(p) = inner.entries.get_mut(&id) {
             p.0.done += done;
         } else {
             inner.entries.insert(
-                id.0,
+                id,
                 (Progress { done, total: 0 }, HiddenProgress::default()),
             );
         }
@@ -416,12 +414,12 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
         total: u32,
     ) {
         let inner = &mut *self.inner.lock();
-        if let Some(p) = inner.entries.get_mut(&id.0) {
+        if let Some(p) = inner.entries.get_mut(&id) {
             p.1.done += done;
             p.1.total += total;
         } else {
             inner.entries.insert(
-                id.0,
+                id,
                 (Progress::default(), Progress { done, total }.into()),
             );
         }
@@ -433,11 +431,11 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
     /// a specific ID.
     pub fn add_hidden_total(&self, id: ProgressEntryId, total: u32) {
         let inner = &mut *self.inner.lock();
-        if let Some(p) = inner.entries.get_mut(&id.0) {
+        if let Some(p) = inner.entries.get_mut(&id) {
             p.1.total += total;
         } else {
             inner.entries.insert(
-                id.0,
+                id,
                 (Progress::default(), Progress { done: 0, total }.into()),
             );
         }
@@ -448,11 +446,11 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
     /// for a specific ID.
     pub fn add_hidden_done(&self, id: ProgressEntryId, done: u32) {
         let inner = &mut *self.inner.lock();
-        if let Some(p) = inner.entries.get_mut(&id.0) {
+        if let Some(p) = inner.entries.get_mut(&id) {
             p.1.done += done;
         } else {
             inner.entries.insert(
-                id.0,
+                id,
                 (Progress::default(), Progress { done, total: 0 }.into()),
             );
         }

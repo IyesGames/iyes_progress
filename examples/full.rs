@@ -111,6 +111,36 @@ fn count_abc_keypresses(
     }
 }
 
+// And yet another way to track progress is to spawn entities with the
+// `ProgressEntity<S>` component, where you can store some progress
+// values. `iyes_progress` has a system (running in `PostUpdate`) to
+// register the progress from any such entities into the `ProgressTracker<S>`.
+//
+// Note: the progress from each entity will be copied into its own
+// automatically-managed entry in the `ProgressTracker<S>`. If you despawn
+// the entity, any previously reported progress will stay.
+
+#[derive(Component)]
+struct MyProgressyThing;
+
+fn spawn_progress_entity(mut commands: Commands) {
+    commands.spawn((
+        MyProgressyThing,
+        ProgressEntity::<MyStates>::default()
+            // give it some initial values
+            .with_progress(0, 1)
+            .with_hidden_progress(0, 1),
+    ));
+}
+
+fn update_progress_entity(
+    mut q: Query<&mut ProgressEntity<MyStates>, With<MyProgressyThing>>,
+) {
+    let mut p = q.single_mut();
+    p.visible.done = 1;
+    p.hidden.done = 1;
+}
+
 #[derive(Component)]
 struct ProgressBarInner;
 
@@ -241,11 +271,14 @@ fn main() {
                     // make it so that if the system returns fully completed
                     // progress, it will not run anymore.
                     .track_progress_and_stop::<MyStates>(),
-                // systems with `ProgressEntry` don't need anything special
+                // systems that don't return values don't need anything special
                 count_abc_keypresses,
+                update_progress_entity,
             )
                 .run_if(in_state(MyStates::Loading)),
         )
+        .add_systems(OnEnter(MyStates::Loading), spawn_progress_entity)
+        // and the supporting UI systems
         .add_systems(Startup, setup_camera)
         .add_systems(OnEnter(MyStates::Loading), setup_loading_ui)
         .add_systems(OnEnter(MyStates::Done), setup_done_ui)

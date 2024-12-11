@@ -44,6 +44,7 @@ pub mod prelude {
     pub use crate::assets::*;
     #[cfg(feature = "debug")]
     pub use crate::debug::*;
+    pub use crate::entity::*;
     pub use crate::plugin::*;
     pub use crate::progress::*;
     pub use crate::state::*;
@@ -58,6 +59,7 @@ pub use crate::prelude::*;
 mod assets;
 #[cfg(feature = "debug")]
 mod debug;
+mod entity;
 mod plugin;
 mod progress;
 mod state;
