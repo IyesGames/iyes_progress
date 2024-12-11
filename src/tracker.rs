@@ -42,7 +42,8 @@ impl ProgressEntryId {
         ProgressEntryId(ProgressEntryIdInner::Monotonic(next_id))
     }
 
-    pub(crate) fn from_entity(e: Entity) -> ProgressEntryId {
+    /// Get the ID representing a given `Entity`
+    pub fn from_entity(e: Entity) -> ProgressEntryId {
         ProgressEntryId(ProgressEntryIdInner::Entity(e))
     }
 }
