@@ -9,7 +9,7 @@ use bevy_state::state::FreelyMutableState;
 use bevy_utils::HashMap;
 use parking_lot::Mutex;
 
-use crate::prelude::{HiddenProgress, Progress};
+use crate::prelude::*;
 
 static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
 
@@ -99,7 +99,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
     ) {
         let mut inner = self.inner.lock();
         for (k, v) in inner.entries.iter_mut() {
-            f(ProgressEntryId(*k), &mut v.0, &mut v.1);
+            f(*k, &mut v.0, &mut v.1);
         }
     }
 
