@@ -7,13 +7,14 @@ use crate::prelude::*;
 
 /// Component to store progress on an entity.
 ///
-/// This is yet another way to report progress. If you insert this component
-/// onto entities, `iyes_progress` will copy the values from here into
-/// entries in the `ProgressTracker<S>` (using a system that runs in `PostUpdate`).
+/// This is yet another way to report/store progress. You can insert
+/// this component on your entities. A system (in [`PostUpdate`]) will
+/// sum up all the values and track that sum in the [`ProgressTracker<S>`].
 ///
-/// Every entity with this component gets its own entry in the `ProgressTracker<S>`.
-/// If the entity is despawned or the component removed, any previously reported
-/// progress will stay.
+/// Note: the values from individual instances of this component are not
+/// copied/replicated in the [`ProgressTracker`]. Only the total sum is
+/// tracked. If you despawn your entity, any progress that was stored on it
+/// will be lost.
 ///
 /// ```rust
 /// commands.spawn((
@@ -66,18 +67,13 @@ impl<S: FreelyMutableState> ProgressEntity<S> {
 
 pub(crate) fn apply_progress_from_entities<S: FreelyMutableState>(
     tracker: Res<ProgressTracker<S>>,
-    q: Query<(Entity, &ProgressEntity<S>)>,
+    q: Query<&ProgressEntity<S>>,
 ) {
-    q.iter().for_each(|(e, pfs)| {
-        tracker.set_progress(
-            ProgressEntryId::from_entity(e),
-            pfs.visible.done,
-            pfs.visible.total,
-        );
-        tracker.set_hidden_progress(
-            ProgressEntryId::from_entity(e),
-            pfs.hidden.done,
-            pfs.hidden.total,
-        );
-    });
+    let sum = q.iter().fold(
+        (Progress::default(), HiddenProgress::default()),
+        |sum, pfs| {
+            (sum.0 + pfs.visible, sum.1 + pfs.hidden)
+        },
+    );
+    tracker.set_sum_entities(sum.0, sum.1);
 }

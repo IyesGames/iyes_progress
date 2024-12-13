@@ -27,24 +27,13 @@ static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
 /// [`ProgressEntryId::new()`]. Store that ID and then use it to update the
 /// values in the [`ProgressTracker`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ProgressEntryId(ProgressEntryIdInner);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum ProgressEntryIdInner {
-    Monotonic(usize),
-    Entity(Entity),
-}
+pub struct ProgressEntryId(usize);
 
 impl ProgressEntryId {
     /// Create a new unique ID
     pub fn new() -> ProgressEntryId {
         let next_id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-        ProgressEntryId(ProgressEntryIdInner::Monotonic(next_id))
-    }
-
-    /// Get the ID representing a given `Entity`
-    pub fn from_entity(e: Entity) -> ProgressEntryId {
-        ProgressEntryId(ProgressEntryIdInner::Entity(e))
+        ProgressEntryId(next_id)
     }
 }
 
@@ -83,7 +72,8 @@ impl<S: FreelyMutableState> Default for ProgressTracker<S> {
 #[derive(Default)]
 struct GlobalProgressTrackerInner {
     entries: HashMap<ProgressEntryId, (Progress, HiddenProgress)>,
-    accum: (Progress, HiddenProgress),
+    sum_entities: (Progress, HiddenProgress),
+    sum_entries: (Progress, HiddenProgress),
 }
 
 impl<S: FreelyMutableState> ProgressTracker<S> {
@@ -156,19 +146,25 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
             .unwrap_or_default()
     }
 
+    pub(crate) fn set_sum_entities(&self, v: Progress, h: HiddenProgress) {
+        let mut inner = self.inner.lock();
+        inner.sum_entities.0 = v;
+        inner.sum_entities.1 = h;
+    }
+
     /// Get the overall visible progress.
     ///
     /// This is what you should use to display a progress bar or
     /// other user-facing indicator.
     pub fn get_global_progress(&self) -> Progress {
         let inner = self.inner.lock();
-        inner.accum.0
+        inner.sum_entries.0 + inner.sum_entities.0
     }
 
     /// Get the overall hidden progress.
     pub fn get_global_hidden_progress(&self) -> HiddenProgress {
         let inner = self.inner.lock();
-        inner.accum.1
+        inner.sum_entries.1 + inner.sum_entities.1
     }
 
     /// Get the overall visible+hidden progress.
@@ -176,7 +172,8 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
     /// This is what you should use to determine if all work is complete.
     pub fn get_global_combined_progress(&self) -> Progress {
         let inner = self.inner.lock();
-        inner.accum.0 + inner.accum.1 .0
+        inner.sum_entries.0 + inner.sum_entries.1 .0 +
+        inner.sum_entities.0 + inner.sum_entities.1 .0
     }
 
     /// Get the visible progress stored for a specific ID.
@@ -233,19 +230,19 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
         if let Some(p) = inner.entries.get_mut(&id) {
             if p.0.total < total {
                 let diff = total - p.0.total;
-                inner.accum.0.total += diff;
+                inner.sum_entries.0.total += diff;
             }
             if p.0.total > total {
                 let diff = p.0.total - total;
-                inner.accum.0.total -= diff;
+                inner.sum_entries.0.total -= diff;
             }
             if p.0.done < done {
                 let diff = done - p.0.done;
-                inner.accum.0.done += diff;
+                inner.sum_entries.0.done += diff;
             }
             if p.0.done > done {
                 let diff = p.0.done - done;
-                inner.accum.0.done -= diff;
+                inner.sum_entries.0.done -= diff;
             }
             p.0 = Progress { done, total };
         } else {
@@ -253,8 +250,8 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
                 id,
                 (Progress { done, total }, HiddenProgress::default()),
             );
-            inner.accum.0.total += total;
-            inner.accum.0.done += done;
+            inner.sum_entries.0.total += total;
+            inner.sum_entries.0.done += done;
         }
     }
 
@@ -271,19 +268,19 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
         if let Some(p) = inner.entries.get_mut(&id) {
             if p.1.total < total {
                 let diff = total - p.1.total;
-                inner.accum.1.total += diff;
+                inner.sum_entries.1.total += diff;
             }
             if p.1.total > total {
                 let diff = p.1.total - total;
-                inner.accum.1.total -= diff;
+                inner.sum_entries.1.total -= diff;
             }
             if p.1.done < done {
                 let diff = done - p.1.done;
-                inner.accum.1.done += diff;
+                inner.sum_entries.1.done += diff;
             }
             if p.1.done > done {
                 let diff = p.1.done - done;
-                inner.accum.1.done -= diff;
+                inner.sum_entries.1.done -= diff;
             }
             p.1 = Progress { done, total }.into();
         } else {
@@ -291,8 +288,8 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
                 id,
                 (Progress::default(), Progress { done, total }.into()),
             );
-            inner.accum.1.total += total;
-            inner.accum.1.done += done;
+            inner.sum_entries.1.total += total;
+            inner.sum_entries.1.done += done;
         }
     }
 
@@ -302,11 +299,11 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
         if let Some(p) = inner.entries.get_mut(&id) {
             if p.0.total < total {
                 let diff = total - p.0.total;
-                inner.accum.0.total += diff;
+                inner.sum_entries.0.total += diff;
             }
             if p.0.total > total {
                 let diff = p.0.total - total;
-                inner.accum.0.total -= diff;
+                inner.sum_entries.0.total -= diff;
             }
             p.0.total = total;
         } else {
@@ -314,7 +311,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
                 id,
                 (Progress { done: 0, total }, HiddenProgress::default()),
             );
-            inner.accum.0.total += total;
+            inner.sum_entries.0.total += total;
         }
     }
 
@@ -324,11 +321,11 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
         if let Some(p) = inner.entries.get_mut(&id) {
             if p.0.done < done {
                 let diff = done - p.0.done;
-                inner.accum.0.done += diff;
+                inner.sum_entries.0.done += diff;
             }
             if p.0.done > done {
                 let diff = p.0.done - done;
-                inner.accum.0.done -= diff;
+                inner.sum_entries.0.done -= diff;
             }
             p.0.done = done;
         } else {
@@ -336,7 +333,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
                 id,
                 (Progress { done, total: 0 }, HiddenProgress::default()),
             );
-            inner.accum.0.done += done;
+            inner.sum_entries.0.done += done;
         }
     }
 
@@ -346,11 +343,11 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
         if let Some(p) = inner.entries.get_mut(&id) {
             if p.1.total < total {
                 let diff = total - p.1.total;
-                inner.accum.1.total += diff;
+                inner.sum_entries.1.total += diff;
             }
             if p.1.total > total {
                 let diff = p.1.total - total;
-                inner.accum.1.total -= diff;
+                inner.sum_entries.1.total -= diff;
             }
             p.1.total = total;
         } else {
@@ -358,7 +355,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
                 id,
                 (Progress::default(), Progress { done: 0, total }.into()),
             );
-            inner.accum.1.total += total;
+            inner.sum_entries.1.total += total;
         }
     }
 
@@ -368,11 +365,11 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
         if let Some(p) = inner.entries.get_mut(&id) {
             if p.1.done < done {
                 let diff = done - p.1.done;
-                inner.accum.1.done += diff;
+                inner.sum_entries.1.done += diff;
             }
             if p.1.done > done {
                 let diff = p.1.done - done;
-                inner.accum.1.done -= diff;
+                inner.sum_entries.1.done -= diff;
             }
             p.1.done = done;
         } else {
@@ -380,7 +377,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
                 id,
                 (Progress::default(), Progress { done, total: 0 }.into()),
             );
-            inner.accum.1.done += done;
+            inner.sum_entries.1.done += done;
         }
     }
 
@@ -399,8 +396,8 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
                 (Progress { done, total }, HiddenProgress::default()),
             );
         }
-        inner.accum.0.total += total;
-        inner.accum.0.done += done;
+        inner.sum_entries.0.total += total;
+        inner.sum_entries.0.done += done;
     }
 
     /// Add more (visible) expected work items to the previously stored value
@@ -415,7 +412,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
                 (Progress { done: 0, total }, HiddenProgress::default()),
             );
         }
-        inner.accum.0.total += total;
+        inner.sum_entries.0.total += total;
     }
 
     /// Add more (visible) completed work items to the previously stored value
@@ -430,7 +427,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
                 (Progress { done, total: 0 }, HiddenProgress::default()),
             );
         }
-        inner.accum.0.done += done;
+        inner.sum_entries.0.done += done;
     }
 
     /// Add more (hidden) work items to the previously stored progress for a
@@ -453,8 +450,8 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
                 (Progress::default(), Progress { done, total }.into()),
             );
         }
-        inner.accum.1.total += total;
-        inner.accum.1.done += done;
+        inner.sum_entries.1.total += total;
+        inner.sum_entries.1.done += done;
     }
 
     /// Add more (hidden) expected work items to the previously stored value for
@@ -469,7 +466,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
                 (Progress::default(), Progress { done: 0, total }.into()),
             );
         }
-        inner.accum.1.total += total;
+        inner.sum_entries.1.total += total;
     }
 
     /// Add more (hidden) completed work items to the previously stored value
@@ -484,7 +481,7 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
                 (Progress::default(), Progress { done, total: 0 }.into()),
             );
         }
-        inner.accum.1.done += done;
+        inner.sum_entries.1.done += done;
     }
 }
 

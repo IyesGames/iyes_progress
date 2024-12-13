@@ -116,9 +116,8 @@ fn count_abc_keypresses(
 // values. `iyes_progress` has a system (running in `PostUpdate`) to
 // register the progress from any such entities into the `ProgressTracker<S>`.
 //
-// Note: the progress from each entity will be copied into its own
-// automatically-managed entry in the `ProgressTracker<S>`. If you despawn
-// the entity, any previously reported progress will stay.
+// Note: The sum of all such entities is computed every frame. If you despawn
+// the entity, the progress that was stored on it will be lost.
 
 #[derive(Component)]
 struct MyProgressyThing;
@@ -126,6 +125,7 @@ struct MyProgressyThing;
 fn spawn_progress_entity(mut commands: Commands) {
     commands.spawn((
         MyProgressyThing,
+        StateScoped(MyStates::Loading),
         ProgressEntity::<MyStates>::default()
             // give it some initial values
             .with_progress(0, 1)
