@@ -2,37 +2,42 @@
 
 Notable user-facing changes with each release version will be described in this file.
 
+## [0.13.1]: 2024-12-13
+
+### Added
+ - You can now represent progress as entities. Add the new `ProgressEntity<S>` component to your entities.
+ - You can now report progress from background tasks/threads using `ProgressSender`. Requires the `"async"` cargo feature.
 
 ## [0.13.0]: 2024-12-01
 
 ### Fixed
-- It was possible for asset tracking to get stuck if asset was added and immediately
-  unloaded. Fix: Drop assets if their status is `NotLoaded`.
+ - It was possible for asset tracking to get stuck if asset was added and immediately
+   unloaded. Fix: Drop assets if their status is `NotLoaded`.
 
 ### Changed
-- Bevy 0.15 compatibility.
+ - Bevy 0.15 compatibility.
 
 ### Added
-- Clearing on state enter/exit is now configurable via the `ProgressPlugin`.
-- `ProgressTracker::for_each_entry` method
+ - Clearing on state enter/exit is now configurable via the `ProgressPlugin`.
+ - `ProgressTracker::for_each_entry` method
 
 ## [0.13.0-rc.1]: 2024-11-21
 
 ### Changed
-- Bevy 0.15.0-rc.3 compatibility.
-- Most things. :) Major overhaul.
-  - See [migration guide](./MIGRATION_012_013.md).
+ - Bevy 0.15.0-rc.3 compatibility.
+ - Most things. :) Major overhaul.
+   - See [migration guide](./MIGRATION_012_013.md).
 
 ## [0.12.0]: 2024-07-05
 
 ### Changed
-- Bevy 0.14 compatibility
-- Asset progress tracking now happens in `PostUpdate`
+ - Bevy 0.14 compatibility
+ - Asset progress tracking now happens in `PostUpdate`
 
 ## [0.11.0]: 2024-02-18
 
 ### Changed
-- Bevy 0.13 compatibility
+ - Bevy 0.13 compatibility
 
 ## [0.10.0]: 2023-11-7
 
@@ -67,6 +72,7 @@ Notable user-facing changes with each release version will be described in this 
 
 Unfortunately, I was not keeping changelogs for older versions. :(
 
+[0.13.1]: https://github.com/IyesGames/iyes_progress/tree/v0.13.1
 [0.13.0]: https://github.com/IyesGames/iyes_progress/tree/v0.13.0
 [0.13.0-rc.1]: https://github.com/IyesGames/iyes_progress/tree/v0.13.0-rc.1
 [0.12.0]: https://github.com/IyesGames/iyes_progress/tree/v0.12.0
