@@ -64,6 +64,8 @@ impl ProgressEntryId {
 #[derive(Resource)]
 pub struct ProgressTracker<S: FreelyMutableState> {
     inner: Mutex<GlobalProgressTrackerInner>,
+    #[cfg(feature = "async")]
+    pub(crate) chan: Option<(Sender, Receiver)>,
     _pd: PhantomData<S>,
 }
 
@@ -71,6 +73,8 @@ impl<S: FreelyMutableState> Default for ProgressTracker<S> {
     fn default() -> Self {
         Self {
             inner: Default::default(),
+            #[cfg(feature = "async")]
+            chan: None,
             _pd: PhantomData,
         }
     }
@@ -85,8 +89,33 @@ struct GlobalProgressTrackerInner {
 impl<S: FreelyMutableState> ProgressTracker<S> {
     /// Clear all stored progress values.
     pub fn clear(&mut self) {
-        let mut inner = self.inner.lock();
-        *inner = Default::default();
+        self.inner = Default::default();
+        #[cfg(feature = "async")]
+        {
+            self.chan = None;
+        }
+    }
+
+    /// Create an entry for a background task/thread.
+    ///
+    /// Returns a [`ProgressSender`], which is the "handle" that
+    /// can be used to update the progress stored for the new entry ID.
+    #[cfg(feature = "async")]
+    pub fn new_async_entry(&mut self) -> ProgressSender {
+        if let Some((tx, _)) = &self.chan {
+            ProgressSender {
+                id: ProgressEntryId::new(),
+                sender: tx.clone(),
+            }
+        } else {
+            let chan = crossbeam_channel::unbounded();
+            let r = ProgressSender {
+                id: ProgressEntryId::new(),
+                sender: chan.0.clone(),
+            };
+            self.chan = Some(chan);
+            r
+        }
     }
 
     /// Call a closure on each entry stored in the tracker.

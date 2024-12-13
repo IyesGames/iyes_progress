@@ -38,7 +38,7 @@ pub struct ProgressPlugin<S: FreelyMutableState> {
 /// This set represents the "check progress and transition state if ready" step.
 /// It is only useful in the schedule where progress checking occurs (`Last` by
 /// default).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, SystemSet)]
 pub struct CheckProgressSet;
 
 impl<S: FreelyMutableState> Default for ProgressPlugin<S> {
@@ -177,6 +177,15 @@ impl<S: FreelyMutableState> Plugin for ProgressPlugin<S> {
             if self.autoclear_on_exit {
                 app.add_systems(OnExit(s.clone()), clear_global_progress::<S>);
             }
+        }
+        #[cfg(feature = "async")]
+        {
+            app.add_systems(
+                PreUpdate,
+                recv_progress_msgs::<S>
+                    .run_if(rc_configured_state::<S>)
+                    .run_if(rc_recv_progress_msgs::<S>),
+            );
         }
         #[cfg(feature = "debug")]
         {

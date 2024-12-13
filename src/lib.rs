@@ -47,6 +47,8 @@ pub mod prelude {
     pub use crate::entity::*;
     pub use crate::plugin::*;
     pub use crate::progress::*;
+    #[cfg(feature = "async")]
+    pub use crate::send::*;
     pub use crate::state::*;
     pub use crate::system::*;
     pub use crate::tracker::*;
@@ -62,6 +64,8 @@ mod debug;
 mod entity;
 mod plugin;
 mod progress;
+#[cfg(feature = "async")]
+mod send;
 mod state;
 mod system;
 mod tracker;

@@ -18,11 +18,17 @@ bevy_log = { version = "0.15.0", optional = true }
 bevy_utils = { version = "0.15.0" }
 parking_lot = "0.12.3"
 derive_more = { version = "1.0.0", features = ["full"] }
+crossbeam-channel = { version = "0.5.13", optional = true }
 
 [features]
 # Support for debug functionality (such as logging progress to console)
-debug = ["bevy_log"]
-assets = ["bevy_asset"]
+debug = ["dep:bevy_log"]
+assets = ["dep:bevy_asset"]
+async = ["dep:crossbeam-channel"]
 
 [dev-dependencies]
 bevy = { version = "0.15.0" }
+
+[[example]]
+name = "async"
+required-features = ["async"]
