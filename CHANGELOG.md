@@ -2,7 +2,10 @@
 
 Notable user-facing changes with each release version will be described in this file.
 
-## [0.14.0]: 2025-04-28
+## Unreleased
+
+### Fixed
+- Tracking a `SubState` would cause a panic when the substate was not active. Fix: run condition now checks if the state exists.
 
 ### Changed
 - Bevy 0.16.0 compatibility.
