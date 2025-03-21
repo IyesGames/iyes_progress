@@ -1,8 +1,9 @@
-use bevy_ecs::prelude::*;
-use bevy_ecs::schedule::SystemConfigs;
+use bevy_ecs::{prelude::*, schedule::ScheduleConfigs};
 use bevy_state::state::FreelyMutableState;
 
 use crate::prelude::*;
+
+type SystemConfigs = ScheduleConfigs<Box<dyn System<In = (), Out = Result<(), BevyError>>>>;
 
 /// Extension trait to add the APIs for handling systems that return progress.
 pub trait ProgressReturningSystem<T, Params> {

@@ -17,7 +17,7 @@
 //! connect to a multiplayer server, etc. The sky is the limit!
 
 use bevy::prelude::*;
-use bevy::utils::Duration;
+use std::time::Duration;
 use iyes_progress::prelude::*;
 
 #[derive(States, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -136,7 +136,9 @@ fn spawn_progress_entity(mut commands: Commands) {
 fn update_progress_entity(
     mut q: Query<&mut ProgressEntity<MyStates>, With<MyProgressyThing>>,
 ) {
-    let mut p = q.single_mut();
+    let Ok(mut p) = q.single_mut() else {
+        return;
+    };
     p.visible.done = 1;
     p.hidden.done = 1;
 }

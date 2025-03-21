@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
 use bevy_state::state::FreelyMutableState;
-use bevy_utils::HashMap;
+use bevy_platform_support::collections::HashMap;
 use parking_lot::Mutex;
 
 use crate::prelude::*;
