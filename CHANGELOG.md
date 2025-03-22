@@ -2,6 +2,11 @@
 
 Notable user-facing changes with each release version will be described in this file.
 
+## WIP
+
+### Fixed
+- Tracking a `SubState` would cause a panic when the substate was not active. Fix: run condition now checks if the state exists.
+
 ## [0.13.1]: 2024-12-13
 
 ### Added

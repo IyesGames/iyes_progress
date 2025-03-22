@@ -37,8 +37,9 @@ pub fn clear_global_progress<S: FreelyMutableState>(
 
 pub(crate) fn rc_configured_state<S: FreelyMutableState>(
     config: Res<StateTransitionConfig<S>>,
-    state: Res<State<S>>,
+    state: Option<Res<State<S>>>,
 ) -> bool {
+    let Some(state) = state else { return false };
     config.map_from_to.contains_key(state.get())
 }
 
