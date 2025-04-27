@@ -5,8 +5,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemParam;
+use bevy_platform::collections::HashMap;
 use bevy_state::state::FreelyMutableState;
-use bevy_utils::HashMap;
 use parking_lot::Mutex;
 
 use crate::prelude::*;
@@ -172,8 +172,10 @@ impl<S: FreelyMutableState> ProgressTracker<S> {
     /// This is what you should use to determine if all work is complete.
     pub fn get_global_combined_progress(&self) -> Progress {
         let inner = self.inner.lock();
-        inner.sum_entries.0 + inner.sum_entries.1 .0 +
-        inner.sum_entities.0 + inner.sum_entities.1 .0
+        inner.sum_entries.0
+            + inner.sum_entries.1 .0
+            + inner.sum_entities.0
+            + inner.sum_entities.1 .0
     }
 
     /// Get the visible progress stored for a specific ID.

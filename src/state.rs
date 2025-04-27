@@ -1,8 +1,8 @@
 use bevy_ecs::prelude::*;
 #[cfg(feature = "debug")]
 use bevy_log::prelude::*;
+use bevy_platform::collections::HashMap;
 use bevy_state::state::{FreelyMutableState, NextState, State};
-use bevy_utils::HashMap;
 
 use crate::prelude::*;
 

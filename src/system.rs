@@ -1,5 +1,6 @@
 use bevy_ecs::prelude::*;
-use bevy_ecs::schedule::SystemConfigs;
+use bevy_ecs::schedule::ScheduleConfigs;
+use bevy_ecs::system::ScheduleSystem;
 use bevy_state::state::FreelyMutableState;
 
 use crate::prelude::*;
@@ -16,12 +17,16 @@ pub trait ProgressReturningSystem<T, Params> {
     /// Note: it is OK if your system does not run every frame (for example,
     /// if you have run conditions). The value from when the system last ran
     /// will be retained until your system runs again.
-    fn track_progress<S: FreelyMutableState>(self) -> SystemConfigs;
+    fn track_progress<S: FreelyMutableState>(
+        self,
+    ) -> ScheduleConfigs<ScheduleSystem>;
 
     /// Like [`track_progress`](Self::track_progress), but adds a run condition
     /// to no longer run the system after it has returned a fully ready
     /// progress value.
-    fn track_progress_and_stop<S: FreelyMutableState>(self) -> SystemConfigs;
+    fn track_progress_and_stop<S: FreelyMutableState>(
+        self,
+    ) -> ScheduleConfigs<ScheduleSystem>;
 }
 
 impl<S, T, Params> ProgressReturningSystem<T, Params> for S
@@ -29,7 +34,9 @@ where
     S: IntoSystem<(), T, Params>,
     T: ApplyProgress + 'static,
 {
-    fn track_progress<State: FreelyMutableState>(self) -> SystemConfigs {
+    fn track_progress<State: FreelyMutableState>(
+        self,
+    ) -> ScheduleConfigs<ScheduleSystem> {
         let id = ProgressEntryId::new();
         self.pipe(
             move |In(progress): In<T>, tracker: Res<ProgressTracker<State>>| {
@@ -41,7 +48,7 @@ where
 
     fn track_progress_and_stop<State: FreelyMutableState>(
         self,
-    ) -> SystemConfigs {
+    ) -> ScheduleConfigs<ScheduleSystem> {
         let id = ProgressEntryId::new();
         self.pipe(
             move |In(progress): In<T>, tracker: Res<ProgressTracker<State>>| {

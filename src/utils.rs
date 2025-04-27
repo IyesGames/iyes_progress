@@ -1,5 +1,7 @@
+use std::time::Duration;
+
 use bevy_ecs::prelude::*;
-use bevy_utils::{Duration, Instant};
+use bevy_platform::time::Instant;
 
 use crate::prelude::Progress;
 

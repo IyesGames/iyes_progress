@@ -10,7 +10,8 @@ pub(crate) type Receiver =
 
 /// A "handle" to send progress updates from a background thread or async task.
 ///
-/// To create an instance of this struct, call [`ProgressTracker::new_async_entry`].
+/// To create an instance of this struct, call
+/// [`ProgressTracker::new_async_entry`].
 ///
 /// Each instance of this struct represents a [`ProgressEntryId`] in the
 /// [`ProgressTracker<S>`] resource. If you clone it, you create another

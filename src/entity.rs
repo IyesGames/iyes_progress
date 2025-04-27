@@ -71,9 +71,7 @@ pub(crate) fn apply_progress_from_entities<S: FreelyMutableState>(
 ) {
     let sum = q.iter().fold(
         (Progress::default(), HiddenProgress::default()),
-        |sum, pfs| {
-            (sum.0 + pfs.visible, sum.1 + pfs.hidden)
-        },
+        |sum, pfs| (sum.0 + pfs.visible, sum.1 + pfs.hidden),
     );
     tracker.set_sum_entities(sum.0, sum.1);
 }

@@ -4,7 +4,7 @@ use bevy_asset::prelude::*;
 use bevy_asset::{LoadState, UntypedAssetId};
 use bevy_ecs::prelude::*;
 use bevy_state::state::FreelyMutableState;
-use bevy_utils::HashSet;
+use bevy_platform::collections::HashSet;
 
 use crate::prelude::*;
 

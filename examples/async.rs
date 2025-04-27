@@ -33,9 +33,7 @@ enum MyStates {
     Done,
 }
 
-fn spawn_background_work(
-    mut pt: ResMut<ProgressTracker<MyStates>>,
-) {
+fn spawn_background_work(mut pt: ResMut<ProgressTracker<MyStates>>) {
     // Create an entry in the progress tracker representing our
     // background work and a "sender handle" that we can give to
     // our thread to update the progress values.
