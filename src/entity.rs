@@ -17,6 +17,13 @@ use crate::prelude::*;
 /// will be lost.
 ///
 /// ```rust
+/// # use bevy::prelude::*;
+/// # use iyes_progress::prelude::*;
+/// #
+/// # #[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
+/// # enum MyStates {}
+/// #
+/// # fn system(mut commands: Commands) {
 /// commands.spawn((
 ///     ProgressEntity::<MyStates>::new()
 ///         .with_progress(0, 1)
@@ -24,6 +31,7 @@ use crate::prelude::*;
 ///
 ///     // ... other components
 /// ));
+/// # }
 /// ```
 #[derive(Component, Debug, Clone, PartialEq, Eq)]
 pub struct ProgressEntity<S: FreelyMutableState> {
