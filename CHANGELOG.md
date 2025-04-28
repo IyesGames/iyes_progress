@@ -2,6 +2,11 @@
 
 Notable user-facing changes with each release version will be described in this file.
 
+## [0.14.0]: 2025-04-28
+
+### Changed
+- Bevy 0.16.0 compatibility.
+
 ## [0.14.0-rc.1]: 2025-03-24
 
 ### Changed
