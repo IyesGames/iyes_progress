@@ -12,6 +12,17 @@
 //! `App`, configuring for the relevant states.
 //!
 //! ```rust
+//! # use bevy::prelude::*;
+//! # use iyes_progress::prelude::*;
+//! #
+//! # #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
+//! # enum MyStates {
+//! #     #[default]
+//! #     Loading,
+//! #     Done,
+//! # }
+//! #
+//! # fn main_() {
 //!     App::new()
 //!         .add_plugins(DefaultPlugins)
 //!         .init_state::<MyStates>()
@@ -21,6 +32,7 @@
 //!         )
 //!         // ...
 //!         .run();
+//! # }
 //! ```
 //!
 //! You can have any number of systems doing different things during

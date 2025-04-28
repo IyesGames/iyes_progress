@@ -61,11 +61,23 @@ where
 ///
 /// Example:
 /// ```rust
+/// # use bevy::prelude::*;
+/// # use iyes_progress::prelude::*;
+/// #
+/// # #[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
+/// # enum MyStates {}
+/// #
+/// # fn my_system() -> Progress {
+/// #     default()
+/// # }
+/// #
+/// # fn plugin(app: &mut App) {
 /// app.add_systems(Update,
 ///     my_system
-///         .hide_progress()
-///         .track_progress()
+///         .pipe(hide_progress)
+///         .track_progress::<MyStates>()
 /// );
+/// # }
 /// ```
 pub fn hide_progress(In(progress): In<Progress>) -> HiddenProgress {
     HiddenProgress(progress)
@@ -76,11 +88,23 @@ pub fn hide_progress(In(progress): In<Progress>) -> HiddenProgress {
 ///
 /// Example:
 /// ```rust
+/// # use bevy::prelude::*;
+/// # use iyes_progress::prelude::*;
+/// #
+/// # #[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
+/// # enum MyStates {}
+/// #
+/// # fn my_system() -> HiddenProgress {
+/// #     default()
+/// # }
+/// #
+/// # fn plugin(app: &mut App) {
 /// app.add_systems(Update,
 ///     my_system
-///         .unhide_progress()
-///         .track_progress()
+///         .pipe(unhide_progress)
+///         .track_progress::<MyStates>()
 /// );
+/// # }
 /// ```
 pub fn unhide_progress(In(progress): In<HiddenProgress>) -> Progress {
     progress.0

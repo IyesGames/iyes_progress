@@ -12,6 +12,17 @@ use crate::prelude::*;
 /// states of the given type.
 ///
 /// ```rust
+/// # use bevy::prelude::*;
+/// # use iyes_progress::prelude::*;
+/// #
+/// # #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
+/// # enum MyStates {
+/// #     #[default]
+/// #     Loading,
+/// #     Done,
+/// # }
+/// #
+/// # fn main_() {
 ///     App::new()
 ///         .add_plugins(DefaultPlugins)
 ///         .init_state::<MyStates>()
@@ -21,6 +32,7 @@ use crate::prelude::*;
 ///         )
 ///         // ...
 ///         .run();
+/// # }
 /// ```
 pub struct ProgressPlugin<S: FreelyMutableState> {
     transitions: StateTransitionConfig<S>,
