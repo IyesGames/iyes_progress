@@ -1,7 +1,7 @@
 [package]
 name = "iyes_progress"
 version = "0.14.0"
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/IyesGames/iyes_progress"
