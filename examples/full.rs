@@ -73,7 +73,7 @@ fn hidden_timer(
 ) -> HiddenProgress {
     if let Some(timer) = &mut *timer {
         timer.tick(time.delta());
-        timer.finished().into()
+        timer.is_finished().into()
     } else {
         *timer = Some(Timer::new(Duration::from_secs(10), TimerMode::Once));
         false.into()
@@ -125,7 +125,7 @@ struct MyProgressyThing;
 fn spawn_progress_entity(mut commands: Commands) {
     commands.spawn((
         MyProgressyThing,
-        StateScoped(MyStates::Loading),
+        DespawnOnExit(MyStates::Loading),
         ProgressEntity::<MyStates>::default()
             // give it some initial values
             .with_progress(0, 1)
@@ -186,12 +186,12 @@ To progress:
  - Press the A/B/C keys a few times
  - Click the mouse a few times",
         ),
-        StateScoped(MyStates::Loading),
+        DespawnOnExit(MyStates::Loading),
     ));
     let bar_outer = commands
         .spawn((
             BackgroundColor(Color::srgb(0.25, 0.25, 0.25)),
-            BorderColor(Color::srgb(1.0, 1.0, 1.0)),
+            BorderColor::all(Color::srgb(1.0, 1.0, 1.0)),
             BorderRadius::all(Val::Px(6.0)),
             Node {
                 position_type: PositionType::Absolute,
@@ -202,14 +202,14 @@ To progress:
                 border: UiRect::all(Val::Px(1.0)),
                 ..Default::default()
             },
-            StateScoped(MyStates::Loading),
+            DespawnOnExit(MyStates::Loading),
         ))
         .id();
 
     let bar_inner = commands
         .spawn((
             BackgroundColor(Color::srgb(0.75, 0.75, 0.75)),
-            BorderColor(Color::srgb(0.5, 0.5, 0.5)),
+            BorderColor::all(Color::srgb(0.5, 0.5, 0.5)),
             BorderRadius::all(Val::Px(8.0)),
             Node {
                 height: Val::Percent(100.0),
@@ -255,7 +255,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .init_state::<MyStates>()
-        .enable_state_scoped_entities::<MyStates>()
+        // .enable_state_scoped_entities::<MyStates>()
         .add_plugins(
             ProgressPlugin::<MyStates>::new()
                 .with_state_transition(MyStates::Loading, MyStates::Done),
