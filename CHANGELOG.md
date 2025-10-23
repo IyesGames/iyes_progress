@@ -2,6 +2,11 @@
 
 Notable user-facing changes with each release version will be described in this file.
 
+## [0.15.0]: 2025-10-23
+
+### Changed
+ - Bevy 0.17 compatibility.
+
 ## [0.14.0]: 2025-05-18
 
 ### Fixed
