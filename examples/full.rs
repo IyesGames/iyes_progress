@@ -17,8 +17,8 @@
 //! connect to a multiplayer server, etc. The sky is the limit!
 
 use bevy::prelude::*;
-use std::time::Duration;
 use iyes_progress::prelude::*;
+use std::time::Duration;
 
 #[derive(States, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum MyStates {
