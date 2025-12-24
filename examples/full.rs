@@ -192,7 +192,6 @@ To progress:
         .spawn((
             BackgroundColor(Color::srgb(0.25, 0.25, 0.25)),
             BorderColor::all(Color::srgb(1.0, 1.0, 1.0)),
-            BorderRadius::all(Val::Px(6.0)),
             Node {
                 position_type: PositionType::Absolute,
                 top: Val::Percent(69.0),
@@ -200,6 +199,7 @@ To progress:
                 left: Val::Percent(12.0),
                 right: Val::Percent(12.0),
                 border: UiRect::all(Val::Px(1.0)),
+                border_radius: BorderRadius::all(Val::Px(6.0)),
                 ..Default::default()
             },
             DespawnOnExit(MyStates::Loading),
@@ -210,13 +210,13 @@ To progress:
         .spawn((
             BackgroundColor(Color::srgb(0.75, 0.75, 0.75)),
             BorderColor::all(Color::srgb(0.5, 0.5, 0.5)),
-            BorderRadius::all(Val::Px(8.0)),
             Node {
                 height: Val::Percent(100.0),
                 width: Val::Percent(0.0),
                 padding: UiRect::left(Val::Px(16.0)),
                 align_items: AlignItems::Center,
                 border: UiRect::all(Val::Px(1.0)),
+                border_radius: BorderRadius::all(Val::Px(8.0)),
                 ..Default::default()
             },
             ProgressBarInner,

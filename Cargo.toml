@@ -1,6 +1,6 @@
 [package]
 name = "iyes_progress"
-version = "0.15.0"
+version = "0.16.0-rc.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
@@ -10,12 +10,12 @@ categories = ["game-engines"]
 description = "Bevy plugin to help implement loading states"
 
 [dependencies]
-bevy_asset = { version = "0.17.2", default-features = false, optional = true }
-bevy_ecs = { version = "0.17.2", default-features = false }
-bevy_app = { version = "0.17.2", default-features = false }
-bevy_state = { version = "0.17.2", default-features = false }
-bevy_log = { version = "0.17.2", default-features = false, optional = true }
-bevy_platform = { version = "0.17.2", default-features = false }
+bevy_asset = { version = "0.18.0-rc.1", default-features = false, optional = true }
+bevy_ecs = { version = "0.18.0-rc.1", default-features = false }
+bevy_app = { version = "0.18.0-rc.1", default-features = false }
+bevy_state = { version = "0.18.0-rc.1", default-features = false }
+bevy_log = { version = "0.18.0-rc.1", default-features = false, optional = true }
+bevy_platform = { version = "0.18.0-rc.1", default-features = false }
 parking_lot = "0.12.3"
 derive_more = { version = "2.0.1", features = ["full"] }
 crossbeam-channel = { version = "0.5.15", optional = true }
@@ -27,7 +27,7 @@ assets = ["dep:bevy_asset"]
 async = ["dep:crossbeam-channel"]
 
 [dev-dependencies]
-bevy = { version = "0.17.2" }
+bevy = { version = "0.18.0-rc.1" }
 
 [[example]]
 name = "async"
