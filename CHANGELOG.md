@@ -95,6 +95,8 @@ Notable user-facing changes with each release version will be described in this 
 
 Unfortunately, I was not keeping changelogs for older versions. :(
 
+[0.16.0]: https://github.com/IyesGames/iyes_progress/tree/v0.16.0
+[0.15.0]: https://github.com/IyesGames/iyes_progress/tree/v0.15.0
 [0.14.0]: https://github.com/IyesGames/iyes_progress/tree/v0.14.0
 [0.14.0-rc.1]: https://github.com/IyesGames/iyes_progress/tree/v0.14.0-rc.1
 [0.13.1]: https://github.com/IyesGames/iyes_progress/tree/v0.13.1
