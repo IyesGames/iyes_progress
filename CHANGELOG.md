@@ -2,6 +2,11 @@
 
 Notable user-facing changes with each release version will be described in this file.
 
+## [0.17.0]
+
+### Changed
+ - Bevy 0.19 compatibility.
+
 ## [0.16.0]: 2026-01-14
 
 ### Changed
@@ -95,6 +100,7 @@ Notable user-facing changes with each release version will be described in this 
 
 Unfortunately, I was not keeping changelogs for older versions. :(
 
+[0.17.0]: https://github.com/IyesGames/iyes_progress/tree/v0.17.0
 [0.16.0]: https://github.com/IyesGames/iyes_progress/tree/v0.16.0
 [0.15.0]: https://github.com/IyesGames/iyes_progress/tree/v0.15.0
 [0.14.0]: https://github.com/IyesGames/iyes_progress/tree/v0.14.0
