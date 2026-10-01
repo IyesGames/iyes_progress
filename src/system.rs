@@ -37,6 +37,7 @@ where
                 progress.apply_progress(&tracker, id);
             },
         )
+        .with_first_name()
         .into_configs()
     }
 
@@ -49,6 +50,7 @@ where
                 progress.apply_progress(&tracker, id);
             },
         )
+        .with_first_name()
         .run_if(move |tracker: Res<ProgressTracker<State>>| {
             !tracker.is_id_ready(id)
         })
