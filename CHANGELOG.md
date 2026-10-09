@@ -2,7 +2,7 @@
 
 Notable user-facing changes with each release version will be described in this file.
 
-## [0.18.0]
+## [0.18.0]: 2026-10-09
 
 ### Changed
  - Bevy 0.20 compatibility.
